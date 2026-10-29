@@ -199,6 +199,8 @@
   .reservation-panel dt { color: var(--muted); }
   .reservation-panel dd { margin: 0; text-align: right; }
   .reservation-action > .button { width: 100%; justify-content: space-between; }
+  .reservation-form { display: grid; gap: 16px; }
+  .reservation-form .button:disabled { opacity: 0.7; transform: none; }
   .reservation-notice { font-size: 13px; line-height: 1.65; padding: 18px; border-left: 2px solid var(--accent); margin-top: 18px; background: var(--paper); }
   .reservation-hint { margin-top: 15px; font-size: 11px; color: var(--muted); text-align: center; }
   .skip-link { position: fixed; z-index: 10; top: 12px; left: 12px; padding: 12px 20px; background: var(--ink); color: white; transform: translateY(-160%); }
