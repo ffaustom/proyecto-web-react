@@ -2,13 +2,10 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import ReservationButton from '../../../components/ReservationButton'
-import { obtenerExperiencia, obtenerExperiencias } from '../../../lib/experiencias'
+import { obtenerExperiencia } from '../../../lib/experiencias'
 import { formatearPrecio } from '../../../lib/formato'
 
-export async function generateStaticParams() {
-  const experiencias = await obtenerExperiencias()
-  return experiencias.map(({ id }) => ({ id }))
-}
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ params }) {
   const { id } = await params

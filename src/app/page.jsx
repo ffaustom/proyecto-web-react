@@ -4,6 +4,8 @@ import Arrow from '../components/Arrow'
 import ExperienceCard from '../components/ExperienceCard'
 import { obtenerDestacadas } from '../lib/experiencias'
 
+export const dynamic = 'force-dynamic'
+
 export default async function HomePage() {
   const destacadas = await obtenerDestacadas()
 
@@ -37,6 +39,7 @@ export default async function HomePage() {
         </div>
         <div className="featured-grid">
           {destacadas.map((experiencia, index) => <ExperienceCard key={experiencia.id} experiencia={experiencia} editorial numero={`0${index + 1}`} />)}
+          {destacadas.length === 0 && <p className="empty-state">Por el momento no hay experiencias destacadas. Volvé pronto para seguir explorando.</p>}
         </div>
       </section>
 

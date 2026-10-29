@@ -2,6 +2,7 @@ import ExperienceCatalog from '../../components/ExperienceCatalog'
 import { obtenerExperiencias } from '../../lib/experiencias'
 
 export const metadata = { title: 'Experiencias' }
+export const dynamic = 'force-dynamic'
 
 export default async function ExperiencesPage() {
   const experiencias = await obtenerExperiencias()

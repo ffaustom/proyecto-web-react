@@ -111,6 +111,52 @@
 }
 
 @layer components {
+  .admin-page { padding-block: 64px 96px; min-height: 65vh; }
+  .admin-card { max-width: 480px; margin-inline: auto; padding: clamp(22px, 4vw, 40px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--wash); }
+  .admin-card h1 { margin-top: 24px; font-size: clamp(36px, 5vw, 52px); }
+  .admin-intro { margin-block: 20px 28px; color: var(--muted); }
+  .admin-form { display: grid; gap: 20px; }
+  .admin-field { display: grid; gap: 8px; }
+  .admin-field label { font-size: 14px; font-weight: 500; }
+  .admin-field input { width: 100%; min-height: 48px; padding: 10px 12px; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid #b8bcaf; border-radius: var(--radius); }
+  .admin-error { color: #88361f; font-size: 14px; }
+  .admin-form .button:disabled { opacity: 0.7; transform: none; }
+  .admin-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 24px; margin-bottom: 42px; }
+  .admin-heading > div { flex: 1 1 320px; min-width: 0; }
+  .admin-heading h1 { font-size: clamp(38px, 5vw, 64px); margin-top: 20px; }
+  .admin-heading .admin-intro { margin-bottom: 0; }
+  .admin-heading .button:disabled { opacity: 0.65; transform: none; background: var(--ink); }
+  .admin-list-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+  .admin-list-heading h2 { font-size: 30px; }
+  .admin-list-heading p, .admin-actions-note { color: var(--muted); font-size: 13px; }
+  .admin-actions-note { margin-block: 16px 24px; }
+  .admin-table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+  .admin-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+  .admin-table caption { text-align: left; padding: 16px 20px; color: var(--muted); font-size: 12px; }
+  .admin-table th, .admin-table td { padding: 18px 20px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .admin-table thead { background: var(--wash); font-size: 12px; }
+  .admin-table th { font-weight: 500; }
+  .admin-table tbody th { min-width: 220px; }
+  .admin-price { white-space: nowrap; }
+  .admin-status { display: inline-block; padding: 4px 10px; background: var(--wash); border-radius: var(--radius); font-size: 12px; }
+  .admin-status-active { background: #e2e9db; color: #33482a; }
+  .admin-row-actions { display: flex; align-items: start; gap: 8px; }
+  .admin-row-actions button, .admin-row-actions a { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); color: var(--muted); font-size: 12px; }
+  .admin-row-actions a { color: var(--ink); }
+  .admin-row-actions a:hover { border-color: var(--accent); color: var(--accent); }
+  .admin-delete .admin-delete-button { color: var(--accent); }
+  .admin-delete-button:hover:not(:disabled) { border-color: var(--accent); }
+  .admin-delete-button:disabled { opacity: 0.65; }
+  .admin-delete .admin-error { min-width: 180px; max-width: 280px; margin-top: 10px; font-size: 12px; }
+  .admin-empty { padding: 32px; background: var(--wash); border-radius: var(--radius); color: var(--muted); }
+  .admin-back { margin-top: 32px; }
+  .admin-create-form { max-width: 720px; padding: clamp(20px, 4vw, 36px); background: var(--wash); border: 1px solid var(--line); border-radius: var(--radius); }
+  .admin-field textarea, .admin-field select { width: 100%; min-height: 48px; padding: 10px 12px; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid #b8bcaf; border-radius: var(--radius); }
+  .admin-field textarea { resize: vertical; }
+  .admin-field-hint { font-size: 13px; color: var(--muted); }
+  .admin-checkbox { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 14px; }
+  .admin-checkbox input { width: 20px; height: 20px; accent-color: var(--accent); }
+  .admin-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; }
   .wordmark { font-size: 38px; font-weight: 650; letter-spacing: -0.075em; line-height: 1; padding-bottom: 5px; }
   .wordmark span { color: var(--accent); }
   .eyebrow { font-size: 10px; font-weight: 600; letter-spacing: 0.14em; line-height: 1.5; text-transform: uppercase; }

@@ -52,9 +52,9 @@ export default function ExperienceCatalog({ experiencias }) {
       ) : (
         <div className="empty-state">
           <span className="eyebrow">Un camino distinto</span>
-          <h2>No encontramos esa combinación.</h2>
-          <p>Probá otra región o categoría para seguir explorando.</p>
-          <button className="button" onClick={limpiarFiltros}>Ver todas las experiencias</button>
+          <h2>{experiencias.length === 0 ? 'Todavía no hay experiencias disponibles.' : 'No encontramos esa combinación.'}</h2>
+          <p>{experiencias.length === 0 ? 'Volvé pronto para descubrir nuevas propuestas.' : 'Probá otra región o categoría para seguir explorando.'}</p>
+          {hayFiltros && <button className="button" onClick={limpiarFiltros}>Ver todas las experiencias</button>}
         </div>
       )}
     </section>
