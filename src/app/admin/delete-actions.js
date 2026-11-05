@@ -1,19 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
-import { crearClienteAuth } from '../../lib/supabase/auth-server'
+import { requerirAdministrador } from '../../lib/supabase/admin-server'
 
 export async function eliminarExperiencia(id, _previousState) {
-  let supabase
-  let authResult
-  try {
-    supabase = await crearClienteAuth()
-    authResult = await supabase.auth.getUser()
-  } catch {
-    return { error: 'No pudimos verificar tu sesión. Intentá nuevamente.' }
-  }
-  if (authResult.error || !authResult.data.user) redirect('/admin/login')
+  const supabase = await requerirAdministrador()
 
   if (typeof id !== 'string' || !id.trim()) {
     return { error: 'No pudimos identificar la experiencia. Recargá el listado e intentá nuevamente.' }

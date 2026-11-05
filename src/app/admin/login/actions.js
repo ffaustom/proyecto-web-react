@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { crearClienteAuth } from '../../../lib/supabase/auth-server'
+import { esAdministrador } from '../../../lib/supabase/admin-server'
 
 export async function iniciarSesion(_previousState, formData) {
   const email = formData.get('email')
@@ -13,7 +14,7 @@ export async function iniciarSesion(_previousState, formData) {
 
   try {
     const supabase = await crearClienteAuth()
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
 
     if (error) {
       if (error.code === 'invalid_credentials') {
@@ -26,6 +27,10 @@ export async function iniciarSesion(_previousState, formData) {
         return { error: 'Demasiados intentos. Esperá unos minutos antes de volver a intentar.' }
       }
       return { error: 'No pudimos iniciar sesión. Intentá nuevamente más tarde.' }
+    }
+    if (!esAdministrador(data.user)) {
+      await supabase.auth.signOut({ scope: 'local' })
+      return { error: 'Esta cuenta no tiene permiso para acceder a administración.' }
     }
   } catch {
     return { error: 'No pudimos conectar con el servicio de autenticación. Intentá nuevamente.' }
