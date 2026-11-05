@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import ReservationButton from '../../../components/ReservationButton'
+import ReservationForm from './ReservationForm'
 import { obtenerExperiencia } from '../../../lib/experiencias'
 import { formatearPrecio } from '../../../lib/formato'
 
@@ -35,10 +35,9 @@ export default async function ExperiencePage({ params }) {
         <aside className="reservation-panel" aria-label="Información y reserva">
           <p className="eyebrow">HACÉ LUGAR PARA SALIR</p>
           <p className="detail-price">{formatearPrecio(experiencia.precio)} <span>ARS</span></p>
-          <p className="per-person">por persona · precio de ejemplo</p>
+          <p className="per-person">por persona</p>
           <dl><div><dt>Duración</dt><dd>{experiencia.duracion}</dd></div><div><dt>Categoría</dt><dd>{experiencia.categoria}</dd></div><div><dt>Región</dt><dd>{experiencia.region}</dd></div></dl>
-          <ReservationButton titulo={experiencia.titulo} />
-          <p className="reservation-hint">Versión de muestra. Reservas aún no disponibles.</p>
+          <ReservationForm experienciaId={experiencia.id} precio={experiencia.precio} />
         </aside>
       </div>
       <div className="detail-bottom"><p>Hay más Argentina por descubrir.</p><Link className="text-link" href="/experiencias">Seguir explorando ↗</Link></div>
