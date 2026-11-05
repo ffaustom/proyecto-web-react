@@ -1,14 +1,12 @@
-import { notFound, redirect } from 'next/navigation'
-import { crearClienteAuth } from '../../../../../lib/supabase/auth-server'
+import { notFound } from 'next/navigation'
+import { requerirAdministrador } from '../../../../../lib/supabase/admin-server'
 import ExperienceForm from '../../../nueva/ExperienceForm'
 import { actualizarExperiencia } from './actions'
 
 export const metadata = { title: 'Editar experiencia', robots: { index: false, follow: false } }
 
 export default async function EditarExperienciaPage({ params }) {
-  const supabase = await crearClienteAuth()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) redirect('/admin/login')
+  const supabase = await requerirAdministrador()
 
   const { id } = await params
   const { data: experiencia, error } = await supabase

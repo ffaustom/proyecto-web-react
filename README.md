@@ -41,102 +41,84 @@ npm start
 
 ## Acceso de administración
 
-`/admin/login` permite ingresar con email y contraseña de un usuario creado en
-Supabase Authentication. No hay registro público. Al ingresar redirige a `/admin`,
-un listado protegido de experiencias con opción de crear nuevas. Una sesión existente también
-redirige desde el login a `/admin`.
+Solo la cuenta de Supabase Auth configurada como administradora puede entrar al
+panel, leer experiencias inactivas y crear, editar o eliminar experiencias.
+Las páginas y todas las Server Actions administrativas verifican la identidad en
+el servidor mediante `src/lib/supabase/admin-server.js`. El login rechaza otras
+cuentas. Sin sesión se redirige a `/admin/login`; con sesión sin autorización,
+a `/`. El proxy renueva cookies; la autorización se verifica en cada entrada.
 
-Auth usa `@supabase/ssr` con las mismas variables públicas de `.env.example`.
-La Server Action guarda la sesión en cookies; `src/proxy.js` renueva los tokens
-en `/admin` y sus subrutas. Las páginas verifican al usuario con `getUser()` en
-el servidor. `src/lib/supabase/auth-server.js` es el cliente SSR y
-`src/lib/supabase/client.js` ofrece el cliente de navegador para futuros componentes.
-El cliente sin sesión del catálogo se conserva separado.
+### Configurar el mismo UUID en Next.js y PostgreSQL
 
-Aplicar `supabase/migrations/20261022120000_allow_authenticated_read_experiencias.sql`
-mediante el flujo de migraciones o el SQL Editor de Supabase. Habilita únicamente
-SELECT para el rol existente `authenticated`, incluyendo registros inactivos;
-la política pública de `anon` no cambia. Sin esta política el listado puede
-aparecer vacío por RLS o fallar por falta de permisos.
+1. En `.env.local`, agregar `ADMIN_USER_ID=tu-uuid-de-supabase-auth`, sin comillas
+   adicionales ni prefijo `NEXT_PUBLIC_`. El archivo está ignorado por Git.
+   Reiniciar Next.js después del cambio. En producción, configurar esa variable
+   en el entorno del servidor del proveedor de hosting y volver a desplegar.
+   Si falta o no tiene formato UUID, ningún usuario obtiene acceso al panel.
+2. Revisar `supabase/migrations/20261105180000_restrict_experiencias_to_admin.sql`
+   y reemplazar **solo el valor asignado a `admin_user_id`**
+   (`REEMPLAZAR_CON_UUID_ADMIN`) por el mismo UUID. No reemplazar la comparación
+   del marcador, que está separada en dos cadenas. PostgreSQL no lee las
+   variables de entorno de Next.js. No hace falta compartir el UUID en un chat.
+3. Aplicar esa nueva migración después de las anteriores, mediante el flujo
+   habitual de migraciones. No se aplicó durante esta implementación. La
+   transacción falla sin cambiar permisos si el marcador sigue sin completar,
+   el UUID es inválido o el usuario no existe en `auth.users`.
 
-`/admin` consulta los datos en un Server Component después de verificar la sesión.
-Muestra título, provincia, categoría, precio en ARS y estado activo. Incluye
-estados de error y listado vacío. Nueva experiencia lleva a `/admin/nueva`.
-Editar abre el formulario precargado. Eliminar pide confirmación antes del borrado.
+La nueva migración reemplaza las cuatro políticas amplias de lectura y escritura
+para `authenticated`; las migraciones anteriores se conservan como historial.
+La lectura pública existente para `anon` no cambia. Los usuarios autenticados
+comunes también pueden leer experiencias activas, pero no inactivas ni escribir.
+Los permisos INSERT/UPDATE/DELETE del rol `authenticated` se filtran por UUID
+mediante RLS, incluso en llamadas directas a la API de Supabase. Se revocan
+privilegios innecesarios como TRUNCATE, que no está sujeto a RLS.
 
-### Crear una experiencia
+El UUID se guarda en una función constante `private.experiencias_admin_id()`,
+sin `SECURITY DEFINER`, sin acceso a tablas y sin permiso de ejecución para
+`PUBLIC` o `anon`. Mantener `private` fuera de los esquemas expuestos por la
+Data API. No usa claves secret ni `service_role`. El UUID es un identificador,
+no una credencial: la autorización exige un token válido de esa cuenta.
 
-Aplicar manualmente `supabase/migrations/20261022130000_allow_authenticated_insert_experiencias.sql`
-en Supabase. Esta migración no fue aplicada al remoto durante la implementación.
-Otorga INSERT al rol existente `authenticated` y exige `auth.uid()` no nulo
-mediante RLS. No habilita UPDATE ni DELETE, ni cambia la lectura pública.
+**Configurar únicamente Next.js no corrige los permisos remotos:** la protección
+de la base queda activa al aplicar la migración. Si cambia el administrador,
+actualizar ambas configuraciones; para PostgreSQL, crear una nueva migración que
+reemplace la constante de la función, sin reeditar una migración ya aplicada.
+No ejecutar de nuevo las políticas antiguas después de la corrección: las
+políticas permisivas se combinan con OR y reabrirían el acceso.
 
-El formulario incluye los campos de contenido de la tabla, `id`, `activo` y
-`destacada`; `created_at` conserva el valor predeterminado de la base.
-La imagen se elige entre los archivos locales existentes, sin subir archivos.
-`incluye` se convierte de líneas de texto a un array sin líneas vacías ni duplicados.
-El identificador debe ser único, en minúsculas, con números y guiones.
-El precio debe estar entre 0 y 9999999999,99 y tener hasta dos decimales.
-La Server Action vuelve a verificar la sesión y valida los campos antes del INSERT.
-Los errores conservan los valores ingresados. Al guardar ejecuta
-`revalidatePath('/admin')` y redirige al listado. El catálogo público conserva
-su código y sus consultas dinámicas: las nuevas experiencias activas aparecen
-al volver a cargarlo.
+### Verificar los permisos después de aplicar la migración
 
-Por ahora cualquier usuario autenticado puede leer, crear, editar y eliminar experiencias.
-No se usan claves secret ni `service_role`.
+Usar una experiencia de prueba activa y otra inactiva, creadas por el administrador.
+Para probar DELETE, usar una experiencia sin reservas relacionadas.
 
-Después de aplicar la migración, probar crear una experiencia inactiva con un ID
-único, comprobar su aparición en admin y su ausencia del catálogo público.
-Probar también ID duplicado, campos vacíos, precio negativo y acceso sin sesión.
+| Identidad | SELECT activas | SELECT inactivas | INSERT / UPDATE / DELETE | Panel |
+| --- | --- | --- | --- | --- |
+| Visitante sin sesión | Sí | No | No | Redirige al login |
+| Usuario autenticado común | Sí | No | No | Redirige a `/` |
+| Administrador configurado | Sí | Sí | Sí | Permitido |
 
-### Editar una experiencia
+Probar `/admin`, `/admin/nueva` y `/admin/experiencias/ID/editar` con cada identidad,
+incluyendo acceso directo por URL. El login con una cuenta común debe mostrar
+que no tiene permiso y cerrar esa sesión local. El administrador debe poder
+crear una experiencia inactiva, editarla y eliminarla sin cambios de diseño.
 
-Aplicar manualmente `supabase/migrations/20261022140000_allow_authenticated_update_experiencias.sql`.
-La migración no fue aplicada al remoto durante la implementación. Otorga UPDATE
-al rol existente `authenticated`; la política exige `auth.uid()` no nulo tanto
-para la fila original (`USING`) como para la actualizada (`WITH CHECK`). Necesita
-también la política SELECT autenticada ya existente. No habilita DELETE.
+También probar directamente con `@supabase/supabase-js`, la URL y clave pública
+del proyecto: un cliente sin sesión para el visitante, y clientes independientes
+con `auth.signInWithPassword()` para las otras dos cuentas. No usar el SQL Editor
+como prueba de usuario final: su rol puede omitir RLS. Para cada cliente ejecutar
+SELECT sin filtro por `activo`, INSERT con campos válidos y UPDATE/DELETE sobre
+una fila de prueba conocida. Pedir `.select('id')` en UPDATE/DELETE: un rechazo
+por RLS puede devolver cero filas sin error. Confirmar desde la sesión del
+administrador que ningún intento no autorizado alteró las filas. Incluir UPDATE
+y DELETE tanto de una experiencia activa como de una inactiva.
 
-`/admin/experiencias/[id]/editar` verifica la sesión y carga la fila en el servidor,
-incluidas las experiencias inactivas; un ID inexistente responde 404. Reutiliza
-el formulario y la validación de CREATE, precargando `incluye` como líneas de texto.
-La Server Action verifica nuevamente la sesión, valida y ejecuta UPDATE filtrado
-por el ID original, comprobando que se devuelva una fila actualizada. Conserva
-`created_at`. Permite cambiar el ID y muestra un error si el nuevo ya existe.
-Al guardar revalida `/admin`, `/experiencias`, `/`, el detalle público anterior
-y el nuevo si cambió el ID, y la página de edición original. Luego redirige a `/admin`.
+Verificar también que `ADMIN_USER_ID` vacío o inválido deniegue el acceso, y que
+el catálogo público y la creación de reservas sigan funcionando. Una reserva
+existente puede impedir DELETE por integridad referencial, independientemente
+de los permisos administrativos.
 
-Después de aplicar la migración, probar cambios de título y precio, las casillas
-activa/destacada y la lista de incluidos. Verificar la precarga de una experiencia
-inactiva, precio inválido, ID duplicado, ID inexistente y acceso sin sesión.
-Si cambia el ID, el detalle público anterior debe responder 404 y el nuevo debe
-mostrar el contenido actualizado cuando la experiencia esté activa.
-
-### Eliminar una experiencia
-
-Aplicar manualmente `supabase/migrations/20261022150000_allow_authenticated_delete_experiencias.sql`.
-La migración no fue aplicada al remoto durante la implementación. Otorga DELETE
-al rol existente `authenticated` y agrega una política `FOR DELETE` con
-`USING ((select auth.uid()) IS NOT NULL)`. Se mantiene la política SELECT autenticada.
-
-El botón Eliminar abre una confirmación nativa del navegador con el título y
-la advertencia de que el borrado es permanente. Cancelar no llama al servidor.
-Confirmar ejecuta una Server Action que verifica la sesión y borra por ID,
-comprobando que Supabase devuelva una fila eliminada. El botón se deshabilita
-mientras se procesa y los errores se muestran junto a la acción.
-Al eliminar revalida `/admin`, `/experiencias`, `/`, el detalle público y la
-página de edición de esa experiencia. El listado se actualiza desde el servidor.
-
-Después de aplicar la migración, verificar con una experiencia de prueba:
-cancelar conserva la fila; confirmar la elimina del panel y del catálogo;
-su detalle público y edición responden 404. Probar también sesión expirada y
-ausencia de permisos de DELETE. No se ejecutaron borrados remotos como prueba.
-
-Verificación manual: abrir `/admin` sin sesión (debe ir al login), enviar
-credenciales incorrectas, ingresar con el usuario existente, recargar `/admin`
-y reabrir `/admin/login` (debe redirigir a `/admin`). Comprobar también campos
-vacíos, navegación por teclado y formulario en pantalla móvil.
+Pruebas aisladas de autorización (sin credenciales ni acceso remoto):
+`node --experimental-vm-modules --test tests/admin-authorization.test.mjs`.
 
 ## Organización del código
 

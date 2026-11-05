@@ -2,13 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { crearClienteAuth } from '../../../lib/supabase/auth-server'
+import { requerirAdministrador } from '../../../lib/supabase/admin-server'
 import { validarExperiencia } from './validacion'
 
 export async function crearExperiencia(_previousState, formData) {
-  const supabase = await crearClienteAuth()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) redirect('/admin/login')
+  const supabase = await requerirAdministrador()
 
   const { values, errors, experiencia } = validarExperiencia(formData)
   if (Object.keys(errors).length) {

@@ -1,15 +1,12 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { crearClienteAuth } from '../../lib/supabase/auth-server'
+import { requerirAdministrador } from '../../lib/supabase/admin-server'
 import { formatearPrecio } from '../../lib/formato'
 import DeleteExperienceButton from './DeleteExperienceButton'
 
 export const metadata = { title: 'Administración', robots: { index: false, follow: false } }
 
 export default async function AdminPage() {
-  const supabase = await crearClienteAuth()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error || !user) redirect('/admin/login')
+  const supabase = await requerirAdministrador()
 
   const { data: experiencias, error: errorListado } = await supabase
     .from('experiencias')

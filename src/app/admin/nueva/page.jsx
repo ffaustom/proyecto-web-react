@@ -1,13 +1,10 @@
-import { redirect } from 'next/navigation'
-import { crearClienteAuth } from '../../../lib/supabase/auth-server'
+import { requerirAdministrador } from '../../../lib/supabase/admin-server'
 import ExperienceForm from './ExperienceForm'
 
 export const metadata = { title: 'Nueva experiencia', robots: { index: false, follow: false } }
 
 export default async function NuevaExperienciaPage() {
-  const supabase = await crearClienteAuth()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error || !user) redirect('/admin/login')
+  await requerirAdministrador()
 
   return (
     <main id="contenido" className="container admin-page">
