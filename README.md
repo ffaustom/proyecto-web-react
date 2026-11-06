@@ -120,9 +120,118 @@ de los permisos administrativos.
 Pruebas aisladas de autorización (sin credenciales ni acceso remoto):
 `node --experimental-vm-modules --test tests/admin-authorization.test.mjs`.
 
+## Galería y relato editorial
+
+El detalle usa `ExperienceGallery` y `ExperienceStory`, compartidos por todas las
+experiencias. La portada sigue en `imagen`/`alt`; la introducción editorial se
+muestra cuando existe, con la descripción como respaldo. Incluidos y
+recomendaciones conservan su contenido actual.
+
+La migración `supabase/migrations/20261105200000_add_experiencias_editorial.sql`
+agrega dos columnas opcionales a `experiencias`, sin actualizar filas ni cambiar
+RLS, permisos, reservas o precios:
+
+- `galeria`: JSONB nullable, arreglo ordenado de hasta cinco objetos
+  `{ "src": "/images/archivo.jpg", "alt": "Descripción", "pie": "Crédito o pie opcional" }`.
+  Son fotografías adicionales a la portada; no se exige un mínimo ni se repiten
+  imágenes para completar una galería. Con fotos disponibles, el objetivo es
+  publicar entre cuatro y seis en total.
+- `contenido_editorial`: JSONB nullable con `titulo`, `introduccion` y
+  `secciones: [{titulo, parrafos: ["Texto"]}]`. El título se muestra como h2 y
+  cada subtítulo como h3. Se mantiene el formato anterior `{titulo, parrafos}`.
+  Todo se muestra como texto plano, sin HTML ni un editor enriquecido.
+
+**Este procedimiento no aplica migraciones.** Antes de guardar desde el nuevo
+administrador, debe confirmarse que las dos columnas existan en el entorno destino.
+Si faltan las columnas, el formulario informa la causa y conserva lo ingresado.
+Las lecturas del detalle y de edición toleran también un esquema anterior: leen
+la fila y usan los campos opcionales solo cuando están presentes. El listado y
+la API mantienen su selección y contrato originales. Después de migrar, las
+experiencias sin contenido nuevo siguen mostrando su portada y descripción;
+con una sola fotografía no aparecen miniaturas ni navegación.
+
+### Edición y fotografías locales
+
+En el administrador, la galería se escribe con una foto por línea:
+`ruta | texto alternativo | pie opcional`. El orden de las líneas es el orden de
+las fotos adicionales. El título y el relato tienen campos separados; los
+párrafos del relato se separan con una línea en blanco. Vaciar los campos elimina
+únicamente los datos opcionales correspondientes.
+
+Los archivos deben agregarse previamente a `public` y estar incluidos en el
+despliegue. Se admiten JPG/JPEG, PNG, WebP y AVIF, con rutas absolutas del sitio
+como `/images/nombre.jpg`. No hay subida de archivos ni se admiten URLs externas,
+SVG, parámetros de URL, rutas relativas o recorridos con `..`. El servidor
+comprueba existencia, tipo de archivo y que la ruta real (incluidos enlaces
+simbólicos) siga dentro de `public`. Una nueva foto requiere desplegar el archivo;
+cambiar el texto o el orden en Supabase no requiere reconstruir la aplicación.
+Seleccionar imágenes pertinentes y con derechos de uso; registrar sus créditos.
+
+El servidor rechaza portadas repetidas, rutas duplicadas, fotos sin texto
+alternativo, más de cinco adicionales o más de 5000 caracteres en el campo.
+Cada ruta y texto alternativo admite hasta 250 caracteres, y el pie hasta 300.
+El título admite 120 caracteres; el relato hasta ocho párrafos de 2000 caracteres
+cada uno, con un máximo total de 8000. La validación se repite dentro de las
+Server Actions, después de la autorización existente y antes de escribir.
+
+La galería permite navegación con botones y miniaturas, también mediante teclado
+(Tab y Enter/Espacio), con un contador anunciado por lectores de pantalla. En
+celular las miniaturas se desplazan horizontalmente. No hay reproducción
+automática ni animaciones. Solo se prioriza la portada; las miniaturas usan
+`next/image` con tamaños pequeños y las imágenes grandes adicionales se cargan
+al seleccionarlas. El relato y el formulario de reserva siguen siendo componentes
+independientes.
+
+### Verificación
+
+- Ejecutar `node --experimental-vm-modules --test tests/*.test.mjs`, `npm run build`
+  y `git diff --check`.
+- Verificar una experiencia sin los nuevos datos: portada, descripción,
+  incluidos, recomendaciones y reserva deben conservarse.
+- Después de aplicar la migración en un entorno de prueba, editar una experiencia
+  con fotografías locales pertinentes y un relato aprobado; guardar, reabrir el
+  formulario y comprobar el orden, pies y párrafos. Vaciar los opcionales y guardar
+  para verificar el regreso a la presentación original.
+- Recorrer miniaturas y controles con teclado, probar celular y confirmar que la
+  API, el catálogo y el flujo de reservas siguen funcionando.
+
+Las fechas, temporadas y cupos quedan para una funcionalidad posterior y no se
+guardan en el relato editorial.
+
 ## Organización del código
 
-- `src/data/experiencias.js`: datos originales conservados como referencia; la aplicación no los importa ni los usa como respaldo.
+### Fotografías verificadas y créditos públicos
+
+`/creditos`, enlazado desde el pie del sitio, permite previsualizar las seis
+portadas y las 15 fotografías adicionales verificadas de Wikimedia Commons.
+Funciona sin consultar Supabase. Las imágenes de contexto no identifican
+operadores, visitas, encuentros ni establecimientos incluidos en una reserva.
+
+Los archivos nuevos están en `public/images/experiencias`, agrupados por destino,
+en WebP y con un máximo de 1600 px en el lado mayor, sin ampliar las fuentes de
+menor resolución. Se usó `sharp`, ya disponible con Next.js, sin agregar
+dependencias. Las seis portadas JPG originales se conservaron sin cambios.
+Cada archivo nuevo conserva en XMP autoría, fuente, licencia y modificaciones.
+`CREDITOS.md` documenta también la selección, exclusiones y posiciones pendientes.
+
+`src/data/fotografias.json` es el inventario de fuentes, licencias, dimensiones,
+textos alternativos y notas. `src/data/galerias.js` exporta `galeriasPreparadas`:
+cada entrada tiene `experienciaId`, `galeria` (objetos `src`, `alt`, `pie`) y
+`textoFormulario`, listo para revisar y pegar en el campo de galería del
+administrador. No se importa en el catálogo ni se carga automáticamente en la
+base: la asociación queda preparada localmente, sin reemplazar datos existentes.
+Los seis relatos aprobados están en `src/data/contenido-editorial-aprobado.json`.
+El procedimiento único de validación y carga está documentado en
+[docs/carga-editorial.md](docs/carga-editorial.md). Su modo predeterminado es local
+y no escribe en Supabase; la carga remota queda pendiente de autorización.
+
+Para revisar: ejecutar `npm run dev` y abrir `http://localhost:3000/creditos`.
+La navegación por miniaturas permite comparar las fotografías; los enlaces
+«Ver fotografía completa» muestran cada WebP sin el recorte de las miniaturas.
+No guardar desde el administrador hasta revisar la selección y confirmar que la
+migración editorial se haya aplicado por separado.
+
+- `src/data/experiencias.js`: datos originales conservados como referencia; el catálogo no los usa como respaldo; el procedimiento de carga los usa para detectar cambios respecto de los datos aprobados.
 - `src/lib/supabase/server.js`: cliente exclusivo del servidor, con clave pública y sin sesiones de Auth.
 - `src/lib/experiencias.js`: consultas a Supabase para catálogo, destacados y detalle; solo registros activos. Orden por creación e ID para obtener resultados estables.
 - `src/lib/formato.js`: formato de precios con `Intl.NumberFormat`.

@@ -1,9 +1,10 @@
-import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import ReservationForm from './ReservationForm'
 import { obtenerExperiencia } from '../../../lib/experiencias'
 import { formatearPrecio } from '../../../lib/formato'
+import ExperienceGallery from '../../../components/ExperienceGallery'
+import ExperienceStory from '../../../components/ExperienceStory'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,10 +26,11 @@ export default async function ExperiencePage({ params }) {
         <p className="eyebrow">{experiencia.categoria} · {experiencia.provincia}</p>
         <h1>{experiencia.titulo}</h1><p>{experiencia.ubicacion}</p>
       </header>
-      <div className="detail-image"><Image src={experiencia.imagen} alt={experiencia.alt} fill sizes="(max-width: 1400px) 100vw, 1320px" preload /></div>
+      <ExperienceGallery key={experiencia.id} imagen={experiencia.imagen} alt={experiencia.alt}
+        galeria={experiencia.galeria} titulo={experiencia.titulo} />
       <div className="detail-grid">
         <div className="detail-copy">
-          <section><p className="eyebrow">LA EXPERIENCIA</p><h2>Un lugar. Otra perspectiva.</h2><p className="description">{experiencia.descripcion}</p></section>
+          <ExperienceStory descripcion={experiencia.descripcion} contenido={experiencia.contenido_editorial} />
           <section className="included-section"><h2>Qué incluye la propuesta</h2><ul>{experiencia.incluye.map((item) => <li key={item}>{item}</li>)}</ul></section>
           <section className="before-you-go"><h2>Antes de salir</h2><p>{experiencia.recomendacion}</p></section>
         </div>

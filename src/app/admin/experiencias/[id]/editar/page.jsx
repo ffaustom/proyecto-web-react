@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { requerirAdministrador } from '../../../../../lib/supabase/admin-server'
 import ExperienceForm from '../../../nueva/ExperienceForm'
 import { actualizarExperiencia } from './actions'
+import { camposEditorialesParaFormulario } from '../../../../../lib/contenido-editorial'
 
 export const metadata = { title: 'Editar experiencia', robots: { index: false, follow: false } }
 
@@ -11,7 +12,7 @@ export default async function EditarExperienciaPage({ params }) {
   const { id } = await params
   const { data: experiencia, error } = await supabase
     .from('experiencias')
-    .select('id,titulo,provincia,ubicacion,region,categoria,duracion,precio,imagen,alt,descripcion,incluye,recomendacion,destacada,activo')
+    .select('*')
     .eq('id', id)
     .maybeSingle()
 
@@ -20,6 +21,7 @@ export default async function EditarExperienciaPage({ params }) {
 
   const initialValues = {
     ...experiencia,
+    ...camposEditorialesParaFormulario(experiencia),
     incluye: experiencia.incluye.join('\n'),
   }
 

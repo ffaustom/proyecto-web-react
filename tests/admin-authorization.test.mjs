@@ -26,7 +26,7 @@ async function loadModule(path, { id = adminId, configuredId = adminId, authErro
     'next/navigation': { redirect: (url) => { throw new Error(`redirect:${url}`) } },
     'next/cache': { revalidatePath: () => {} },
     'auth-server': { crearClienteAuth: async () => supabase },
-    'validacion': { validarExperiencia: () => { calls.validation++; throw new Error('Unexpected validation') } },
+    'validacion-server': { validarExperiencia: () => { calls.validation++; throw new Error('Unexpected validation') } },
   }
   const modules = new Map()
   async function getModule(filename) {

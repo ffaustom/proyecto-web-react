@@ -1,0 +1,86 @@
+{
+  "senderos-del-fitz-roy": {
+    "titulo": "El día se mide en pasos",
+    "introduccion": "En El Chaltén, la escala del paisaje se descubre al caminar. El bosque ocupa el primer plano; más arriba, las agujas del Fitz Roy pueden aparecer entre las nubes. Cuando la montaña se deja ver, levantar la vista cambia por un momento la atención sobre el propio cansancio. La jornada propone seguir un sendero, reconocer sus cambios y encontrar pausas para disfrutar de estar ahí, frente a esas cumbres.",
+    "secciones": [
+      {
+        "titulo": "Caminar y detenerse",
+        "parrafos": ["La propuesta combina una caminata acompañada por un guía local, paradas en miradores y un almuerzo de marcha. Cada pausa permite recuperar el aire y observar lo que durante el paso queda a un costado: la vegetación, las piedras, la forma en que el bosque abre una vista."]
+      },
+      {
+        "titulo": "Un pueblo vinculado a sus senderos",
+        "parrafos": ["El trekking ocupa un lugar central en la identidad de El Chaltén. Los caminos vinculan la localidad con el parque nacional y con una cultura de montaña donde orientarse, prepararse y cuidar el entorno son parte de la experiencia compartida."]
+      }
+    ]
+  },
+  "vinedos-de-mendoza": {
+    "titulo": "El trabajo detrás de una copa",
+    "introduccion": "En el Valle de Uco, las hileras de viñas dibujan una forma de trabajar la tierra al pie de la cordillera. El paisaje tiene algo de cultivo y algo de espera: cada cosecha reúne decisiones que después llegan a una copa. Esta experiencia invita a acercarse a ese proceso y a la mesa mendocina, con tiempo para observar, probar y conversar sobre lo que se produce en el lugar.",
+    "secciones": [
+      {
+        "titulo": "Del viñedo a la mesa",
+        "parrafos": ["El recorrido por el viñedo y la bodega, la degustación y el almuerzo de estación acercan distintas expresiones del mismo territorio. En la cultura argentina, la mesa también es un lugar de conversación. La sobremesa expresa esa disposición a compartir lo que una comida despierta: recuerdos, preguntas y maneras de entender un sabor."]
+      },
+      {
+        "titulo": "El agua también forma parte del paisaje",
+        "parrafos": ["La agricultura mendocina está ligada al manejo del agua que llega de la cordillera. Pensar en el riego, en quienes cuidan las plantas y en los tiempos de cosecha suma otra dimensión a la visita: permite reconocer el trabajo que mantiene este paisaje cultivado."]
+      }
+    ]
+  },
+  "colores-de-purmamarca": {
+    "titulo": "Entre el adobe y la feria",
+    "introduccion": "Purmamarca se conoce en dos escalas: la amplitud de los cerros y la cercanía de sus calles. Entre ambas aparecen las paredes de adobe, las puertas de los comercios y el movimiento alrededor de la plaza. Caminar permite pasar de los tonos de la tierra a los detalles de una fachada o una pieza expuesta. Vale la pena hacer lugar a esas pequeñas observaciones y recorrer el pueblo con curiosidad y respeto.",
+    "secciones": [
+      {
+        "titulo": "Del pueblo a los Colorados",
+        "parrafos": ["El paseo acompañado por Purmamarca se complementa con la caminata por el Paseo de los Colorados. El cambio de escala permite observar el entorno desde distintos lugares. El tiempo libre en la plaza y la feria deja después un margen para detenerse donde cada persona encuentre algo que le interese."]
+      },
+      {
+        "titulo": "Mirar también los materiales",
+        "parrafos": ["La arquitectura de adobe y la actividad artesanal forman parte del carácter del pueblo. En la feria, los materiales, las técnicas y la procedencia de cada pieza merecen atención. Preguntar por esos detalles permite valorar lo que se ofrece y reconocer a las personas y los oficios detrás de los objetos."]
+      }
+    ]
+  },
+  "quebrada-de-las-conchas": {
+    "titulo": "Las formas que deja el tiempo",
+    "introduccion": "Al salir de Cafayate, la Quebrada de las Conchas cambia la manera de medir las distancias. Las paredes rojas, los pliegues y las franjas de distintos tonos invitan a mirar despacio. El recorrido alterna el desplazamiento con paradas junto a las formaciones, acompañado por un guía local. A medida que cambia el punto de vista, también cambia lo que se distingue en la piedra: una textura, una sombra, una figura.",
+    "secciones": [
+      {
+        "titulo": "Leer las capas",
+        "parrafos": ["Los tonos rojizos se relacionan con la presencia de minerales de hierro; las formas muestran la acción del agua y la erosión. Durante las paradas, observar capas y superficies permite reconocer que el paisaje sigue cambiando, aunque sus tiempos sean difíciles de imaginar desde una visita."]
+      },
+      {
+        "titulo": "Un paisaje que se nombra",
+        "parrafos": ["La vitivinicultura, los oficios artesanales y la música forman parte del horizonte cultural de los Valles Calchaquíes. Desde Cafayate, ese contexto se suma a la mirada sobre la quebrada y a los nombres populares que reconocen figuras en sus rocas. Son distintas maneras de relacionarse con el territorio y transmitir lo que se conoce de él."]
+      }
+    ]
+  },
+  "historias-de-buenos-aires": {
+    "titulo": "La ciudad se cuenta en las esquinas",
+    "introduccion": "La Boca y San Telmo invitan a recorrer Buenos Aires a una escala cercana: una esquina, un balcón, un cartel que todavía conserva otra época. En sus veredas conviven las huellas del trabajo y la inmigración con el movimiento de los comercios y las conversaciones de hoy. El paseo une ambos barrios y deja espacio para una pausa de café, una manera muy porteña de detenerse a mirar lo que sigue pasando alrededor.",
+    "secciones": [
+      {
+        "titulo": "Dos barrios para recorrer",
+        "parrafos": ["La propuesta incluye paseos por La Boca y San Telmo, con traslado entre ambos. Caminar permite detener la mirada en detalles que cambian de una cuadra a otra. El café incluido aporta una pausa al recorrido: sentarse, conversar y volver sobre alguna historia o imagen que haya llamado la atención."]
+      },
+      {
+        "titulo": "Las huellas de una ciudad compartida",
+        "parrafos": ["La historia de los conventillos y de las familias inmigrantes ayuda a comprender parte de la identidad de La Boca. En San Telmo, las fachadas antiguas, los comercios y los cafés aportan otras capas a la lectura barrial. La ciudad se reconoce tanto en esos edificios como en las formas cotidianas de ocupar sus veredas."]
+      }
+    ]
+  },
+  "ballenas-en-puerto-madryn": {
+    "titulo": "Aprender a esperar frente al mar",
+    "introduccion": "Desde Puerto Pirámides, salir al agua cambia la perspectiva de la costa. La orilla se aleja y la mirada empieza a buscar señales en la superficie: una ondulación, una sombra, algún movimiento distinto. La posibilidad de reconocer vida entre esas pequeñas variaciones sostiene la emoción del recorrido. La navegación acerca al ambiente marino de Península Valdés con acompañamiento y una introducción a su fauna, siempre sujeta a las condiciones naturales de cada salida.",
+    "secciones": [
+      {
+        "titulo": "Observar con más referencias",
+        "parrafos": ["La charla introductoria ofrece herramientas para reconocer y comprender la fauna marina. A bordo, el acompañamiento y el equipamiento de seguridad forman parte de la salida. Esperar, compartir una observación y volver la mirada hacia el agua permite disfrutar de la búsqueda, con atención a lo que efectivamente sucede alrededor."]
+      },
+      {
+        "titulo": "Un lugar para la crianza",
+        "parrafos": ["Las aguas de Península Valdés son un área de reproducción y crianza para la ballena franca austral. Su protección forma parte de la identidad del destino y de una manera de visitarlo que da prioridad a la vida silvestre, sus distancias y sus tiempos. La presencia y el comportamiento de los animales no pueden garantizarse."]
+      }
+    ]
+  }
+}

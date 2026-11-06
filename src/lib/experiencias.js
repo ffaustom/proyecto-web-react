@@ -24,7 +24,10 @@ export async function obtenerExperiencias() {
 
 // Metadata y página comparten la consulta durante el mismo render del servidor.
 export const obtenerExperiencia = cache(async (id) => {
-  const { data, error } = await consultarExperiencias().eq('id', id).maybeSingle()
+  // Solo el detalle necesita los campos editoriales. El listado y la API
+  // conservan su selección explícita y su contrato actual.
+  const { data, error } = await crearClienteSupabase().from('experiencias')
+    .select('*').eq('activo', true).eq('id', id).maybeSingle()
   verificarError(error)
   return data
 })

@@ -1,3 +1,5 @@
+import { validarCamposEditoriales } from '../../../lib/contenido-editorial'
+
 export const imagenes = ['patagonia.jpg', 'mendoza.jpg', 'jujuy.jpg', 'salta.jpg', 'buenos-aires.jpg', 'madryn.jpg'].map((archivo) => `/images/${archivo}`)
 
 export const camposTexto = [
@@ -34,13 +36,17 @@ export function validarExperiencia(formData) {
   }
   if (values.imagen && !imagenes.includes(values.imagen)) errors.imagen = 'Elegí una de las imágenes disponibles.'
 
+  const editorial = validarCamposEditoriales(formData, values.imagen)
+
   return {
-    values,
-    errors,
+    values: { ...values, ...editorial.values },
+    errors: { ...errors, ...editorial.errors },
     experiencia: {
       ...values,
       precio: Number(precio),
       incluye: [...new Set(values.incluye.split(/\r?\n/).map((item) => item.trim()).filter(Boolean))],
+      galeria: editorial.galeria,
+      contenido_editorial: editorial.contenido_editorial,
     },
   }
 }

@@ -3,12 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requerirAdministrador } from '../../../../../lib/supabase/admin-server'
-import { validarExperiencia } from '../../../nueva/validacion'
+import { validarExperiencia } from '../../../nueva/validacion-server'
 
 export async function actualizarExperiencia(idOriginal, _previousState, formData) {
   const supabase = await requerirAdministrador()
 
-  const { values, errors, experiencia } = validarExperiencia(formData)
+  const { values, errors, experiencia } = await validarExperiencia(formData)
   if (Object.keys(errors).length) {
     return { values, errors, error: 'Revisá los campos indicados antes de guardar.' }
   }
@@ -25,6 +25,9 @@ export async function actualizarExperiencia(idOriginal, _previousState, formData
       .maybeSingle()
 
     if (error) {
+      if (['PGRST204', '42703'].includes(error.code) && /galeria|contenido_editorial/.test(error.message ?? '')) {
+        return { values, errors: {}, error: 'Falta aplicar la migración de galería y contenido editorial en Supabase antes de guardar.' }
+      }
       if (error.code === '23505') {
         return { values, errors: { id: 'Este identificador ya existe. Elegí otro.' }, error: 'No se guardaron los cambios: el identificador está en uso.' }
       }
