@@ -10,6 +10,7 @@ export default function Footer() {
       </div>
       <div className="footer-bottom">
         <span>Hecho para descubrir Argentina.</span>
+        <Link href="/creditos">Créditos fotográficos</Link>
         <span>Proyecto académico · Experiencias y precios de ejemplo</span>
       </div>
     </footer>
