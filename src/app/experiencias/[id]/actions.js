@@ -4,7 +4,9 @@ import { crearClienteSupabase } from '../../../lib/supabase/server'
 import { validarReserva } from './validacion'
 
 export async function crearReserva(experienciaId, _previousState, formData) {
-  const { values, errors, cantidad } = validarReserva(formData)
+  // Transición de despliegue: retirar esta opción al cerrar la compatibilidad
+  // con formularios anteriores (ver las dos fases de migración en README).
+  const { values, errors, cantidad } = validarReserva(formData, undefined, { permitirFechaAusente: true })
   if (Object.keys(errors).length) {
     return { values, errors, error: 'Revisá los campos indicados.' }
   }
@@ -32,11 +34,12 @@ export async function crearReserva(experienciaId, _previousState, formData) {
       nombre_comprador: values.nombre_comprador,
       email: values.email,
       cantidad_personas: cantidad,
+      fecha_visita: values.fecha_visita || null,
       total: (totalCentavos / 100).toFixed(2),
       estado: 'pendiente',
     })
     if (error) {
-      return { values, errors: {}, error: 'No pudimos guardar la reserva. El precio o la disponibilidad pueden haber cambiado. Actualizá la página e intentá nuevamente.' }
+      return { values, errors: {}, error: 'No pudimos guardar la reserva. Revisá la fecha y actualizá la página para verificar el precio vigente. Si el problema continúa, intentá más tarde.' }
     }
     return { success: true, values: {}, errors: {}, error: '' }
   } catch {

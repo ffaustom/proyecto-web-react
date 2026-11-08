@@ -5,6 +5,7 @@ import { obtenerExperiencia } from '../../../lib/experiencias'
 import { formatearPrecio } from '../../../lib/formato'
 import ExperienceGallery from '../../../components/ExperienceGallery'
 import ExperienceStory from '../../../components/ExperienceStory'
+import { hoyArgentina } from '../../../lib/fechas.js'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +40,7 @@ export default async function ExperiencePage({ params }) {
           <p className="detail-price">{formatearPrecio(experiencia.precio)} <span>ARS</span></p>
           <p className="per-person">por persona</p>
           <dl><div><dt>Duración</dt><dd>{experiencia.duracion}</dd></div><div><dt>Categoría</dt><dd>{experiencia.categoria}</dd></div><div><dt>Región</dt><dd>{experiencia.region}</dd></div></dl>
-          <ReservationForm experienciaId={experiencia.id} precio={experiencia.precio} />
+          <ReservationForm experienciaId={experiencia.id} precio={experiencia.precio} hoyInicial={hoyArgentina()} />
         </aside>
       </div>
       <div className="detail-bottom"><p>Hay más Argentina por descubrir.</p><Link className="text-link" href="/experiencias">Seguir explorando ↗</Link></div>

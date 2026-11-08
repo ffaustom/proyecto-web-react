@@ -241,6 +241,10 @@
   .reservation-panel dd { margin: 0; text-align: right; }
   .reservation-action > .button { width: 100%; justify-content: space-between; }
   .reservation-form { display: grid; gap: 16px; }
+  .seasonal-recommendation:not(:empty) { padding: 16px; border-left: 2px solid var(--accent); background: var(--paper); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+  .seasonal-recommendation p + p { margin-top: 10px; }
+  .seasonal-recommendation ul { padding-left: 18px; margin-top: 10px; }
+  .seasonal-recommendation a { text-decoration: underline; text-underline-offset: 3px; }
   .reservation-form .button:disabled { opacity: 0.7; transform: none; }
   .reservation-notice { font-size: 13px; line-height: 1.65; padding: 18px; border-left: 2px solid var(--accent); margin-top: 18px; background: var(--paper); }
   .reservation-hint { margin-top: 15px; font-size: 11px; color: var(--muted); text-align: center; }
