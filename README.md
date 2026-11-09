@@ -195,8 +195,179 @@ independientes.
 - Recorrer miniaturas y controles con teclado, probar celular y confirmar que la
   API, el catálogo y el flujo de reservas siguen funcionando.
 
-Las fechas, temporadas y cupos quedan para una funcionalidad posterior y no se
-guardan en el relato editorial.
+Las fechas y temporadas se gestionan por separado del relato editorial, como se
+describe a continuación. No hay cupos ni controles de disponibilidad.
+
+## Fecha de visita y orientación estacional
+
+La fase 1 fue aplicada en Supabase remoto y se confirmó manualmente que el
+formulario anterior sigue recibiendo reservas en Production. La fase 2 continúa
+pendiente. No ejecutar ambas juntas al desplegar en otro entorno: eso bloquearía
+el formulario anterior.
+
+### Fase 1: expansión, antes de publicar el código nuevo
+
+Aplicar únicamente
+`supabase/migrations/20261108120000_add_reservas_fecha_visita.sql`, después de las
+migraciones previas de reservas, en los entornos donde aún falte. En el remoto
+actual ya está aplicada: no repetirla. Si otro entorno aplicó una versión distinta
+del mismo archivo, detenerse y preparar una migración de corrección para ese
+entorno; no alterar su historial de migraciones.
+
+- Agrega `reservas.fecha_visita DATE`, nullable, sin default ni backfill. Las
+  reservas anteriores y las solicitudes antiguas de transición conservan `NULL`.
+  Presentarlas como «Sin fecha registrada» si se agrega un listado.
+- Agrega únicamente `INSERT (fecha_visita)` para `anon`, sin conceder lectura,
+  actualización, borrado ni escritura de datos de pago.
+- Conserva la política que verifica comprador, experiencia activa, importe y
+  estado pendiente. La política nueva es INSERT **restrictiva**: acepta `NULL` y,
+  cuando hay fecha, exige hoy o posterior en `America/Argentina/Buenos_Aires`,
+  hasta `9999-12-31`. PostgreSQL rechaza días inexistentes y las comparaciones
+  rechazan infinitos. No usa un CHECK relativo a hoy sobre filas históricas.
+- No consulta temporada ni cambia precios, estados, permisos administrativos,
+  pagos o cupos. La Server Action usa `anon`, sin sesión, incluso si el navegador
+  tiene una sesión de administrador.
+
+Ambas fases usan `BEGIN/COMMIT` y `SET LOCAL lock_timeout = '5s'`: si no consiguen
+el bloqueo necesario, fallan sin cambios parciales y deben reintentarse tras
+revisar las transacciones activas. El DDL puede bloquear brevemente operaciones;
+no elimina datos ni provoca el rechazo permanente del formulario anterior.
+
+Antes del despliegue, comprobar con la versión vieja todavía publicada que una
+reserva sin campo de fecha sigue creándose con `NULL`, total correcto y estado
+pendiente. Comprobar también los permisos y casos de la tabla inferior en un
+entorno de prueba autorizado.
+
+### Publicar y probar la versión de transición
+
+Publicar esta versión **después de la fase 1**. Sin la columna, el formulario nuevo
+no podrá guardar reservas. La Server Action habilita temporalmente
+`permitirFechaAusente: true`: solo acepta ausencia del campo `fecha_visita`, como
+lo enviaba el formulario anterior, y guarda `NULL`. No acepta el campo vacío,
+con espacios, como archivo, con fecha pasada o inexistente. Nunca inventa una
+fecha. Esta tolerancia es de compatibilidad, no una forma de identificar con
+seguridad al cliente: durante la transición una llamada directa también puede
+omitir el campo. La base cierra esa excepción en fase 2.
+
+El formulario nuevo mantiene `required`, validación nativa y comprobación antes
+del envío; no permite enviar sin fecha aunque el servidor esté en transición.
+Probar con la versión publicada: fecha válida dentro/fuera de temporada, cambio
+inmediato de consejo, fuentes, teclado, móvil, total e importe persistidos, ausencia
+de cobros y conservación de campos si falla el guardado. Probar también una
+solicitud del formulario anterior contra el servidor nuevo y verificar `NULL`.
+
+### Fase 2: exigir fecha, solo después de verificar el despliegue
+
+El archivo preparado es
+`supabase/deferred/20261108130000_require_reservas_fecha_visita.sql`. Está fuera de
+`supabase/migrations` para que una ejecución rutinaria no active la exigencia por
+accidente. No ejecutarlo ni moverlo durante el despliegue de expansión.
+
+Aplicarlo solo cuando:
+
+1. La nueva versión está publicada y pasó las comprobaciones anteriores.
+2. No quedan instancias antiguas sirviendo el formulario; se gestionó la recarga
+   de pestañas antiguas y se verificó en el tráfico del servidor que no siguen
+   llegando solicitudes de reserva sin fecha durante el período de transición
+   acordado. Si no se puede comprobar esto, mantener fase 1; no hay un plazo fijo
+   que garantice por sí solo que desaparecieron las pestañas antiguas.
+3. Se verificó en un entorno de prueba que ambas políticas restrictivas se
+   combinan con la política permisiva existente y que no hay políticas o grants
+   adicionales inesperados en el destino.
+
+Entonces mover el archivo de `supabase/deferred` a `supabase/migrations`, conservando
+su nombre, actualizar la prueba de ubicación de migraciones para esa etapa y
+aplicar esa segunda migración mediante el flujo habitual autorizado. Revisar la
+lista de pendientes antes de ejecutar el flujo: no incluir cambios ajenos.
+
+La segunda fase agrega otra política INSERT restrictiva: `fecha_visita IS NOT NULL`.
+Conserva la validación de fase 1, las reservas anteriores con `NULL` y la posibilidad
+de actualizar estados/pagos mediante un servidor autorizado aunque la visita ya
+haya pasado. No agrega un `NOT NULL` a la columna ni permisos de UPDATE públicos.
+
+Después de aplicar fase 2, verificar la tabla de casos y publicar la retirada de
+`{ permitirFechaAusente: true }` de `crearReserva`, llamando a `validarReserva(formData)`
+para recuperar el error explícito de fecha requerida en servidor. Retirar también
+la opción de compatibilidad del validador y adaptar sus pruebas. Mientras esa
+limpieza no se despliegue, la base ya rechaza toda nueva reserva pública sin fecha;
+la Server Action conserva lo ingresado y muestra un error de guardado.
+
+Una pestaña antigua que siga enviando sin fecha después de fase 2 será rechazada.
+La transición evita el corte al desplegar, pero no puede aceptar indefinidamente
+solicitudes sin fecha y exigirla simultáneamente en todos los INSERT públicos.
+No volver a desplegar el formulario antiguo tras activar fase 2.
+
+`src/lib/fechas.js` valida días reales (incluidos años bisiestos) y calcula el día
+argentino de forma explícita, sin interpretar la visita como un instante UTC.
+El cliente usa el día enviado por el servidor para hidratar sin diferencias, lo
+actualiza cada 30 segundos y al recuperar foco, y lo vuelve a comprobar al enviar.
+El servidor repite la validación; RLS usa su propio reloj al insertar. Si la página
+queda abierta al cambiar de día, una fecha vencida debe corregirse antes de guardar.
+
+`src/data/temporadas.js` es la configuración editorial única, por ID. La función
+`src/lib/temporadas.js` calcula el consejo de inmediato en el cliente, sin red.
+El aviso usa `role="status"`, `aria-live="polite"` y texto explícito, con enlaces
+oficiales. Fuera de temporada siempre se permite reservar una fecha válida.
+Una experiencia nueva sin regla muestra «Sin recomendación estacional», sin
+inventar un consejo ni impedir la reserva.
+
+| Experiencia | Meses sugeridos por Afuera | Fuente oficial de contexto |
+| --- | --- | --- |
+| Fitz Roy | Octubre–marzo | [Visit Argentina](https://www.argentina.travel/actividades/el-chalten) |
+| Viñedos de Mendoza | Marzo–abril y septiembre–noviembre | [Visit Argentina](https://www.argentina.travel/destinos/mendoza), [Turismo Argentina: vendimia](https://www.argentina.gob.ar/jefatura/turismo/viaja-por-argentina/celebrar-la-vendimia-en-mendoza) |
+| Purmamarca | Abril–noviembre | [La Ruta Natural](https://larutanatural.gob.ar/es/rutas/10/valles-quebradas-y-yungas) |
+| Quebrada de las Conchas | Abril–noviembre | [La Ruta Natural](https://larutanatural.gob.ar/es/rutas/10/valles-quebradas-y-yungas) |
+| Buenos Aires a pie | Todo el año; consejos por estación | [Turismo de Buenos Aires](https://turismo.buenosaires.gob.ar/es/article/clima?page=1) |
+| Puerto Pirámides | Junio–diciembre | [Municipalidad de Puerto Pirámides](https://www.puertopiramides.gov.ar/avistaje/) |
+
+Los intervalos mensuales son decisiones editoriales de Afuera basadas en el
+contexto de las fuentes; no se presentan como fechas exactas de operación.
+La Ruta Natural destaca junio–septiembre como época más agradable en las quebradas;
+Afuera adopta abril–noviembre para orientar fuera del verano lluvioso. Buenos Aires
+usa estaciones meteorológicas por mes (dic–feb, mar–may, jun–ago, sep–nov).
+La vendimia no implica entradas a eventos ni actividades de cosecha incluidas.
+Fuera de junio–diciembre se advierte expresamente que **no se espera avistaje de
+ballenas y no se garantiza la operación de la excursión**. Incluso en temporada,
+los avistajes embarcados suelen empezar a mediados de junio y varían según el año.
+Ningún consejo garantiza clima, fauna ni servicios.
+
+### Compatibilidad con pagos futuros
+
+La fecha no cambia el cálculo en centavos, `total`, `estado = 'pendiente'` ni los
+campos existentes de Mercado Pago. La integración futura deberá asociar el pago
+al UUID de la reserva; elegir una fecha no inicia cobros ni confirma un servicio.
+No se guardan consejos derivados ni se agregan estructuras de pago por anticipado.
+
+### Verificación de fechas
+
+`npm test` ejecuta las pruebas aisladas sin credenciales ni red; incluye límites
+mensuales de las seis experiencias, años bisiestos, cambio de día argentino,
+validación, render accesible y creación de reservas con Supabase simulado.
+Ejecutar también `npm run build` y `git diff --check`.
+
+Las pruebas incluyen contratos estáticos de ambos archivos SQL y simulación de las
+dos fases en la Server Action. **No ejecutan PostgreSQL ni prueban RLS real**;
+las comprobaciones siguientes quedan pendientes para un entorno autorizado.
+El agente no ejecutó migraciones ni escribió reservas remotas. La aplicación de
+fase 1 y la prueba manual del formulario anterior en Production fueron confirmadas
+por el responsable del proyecto; los demás casos siguen pendientes de verificar
+en el entorno destino.
+
+| Prueba con rol `anon` | Tras expansión | Tras exigencia |
+| --- | --- | --- |
+| INSERT sin fecha o con NULL | Aceptar con NULL | Rechazar |
+| INSERT con hoy/futuro, dentro o fuera de temporada | Aceptar día exacto | Aceptar día exacto |
+| INSERT con fecha pasada, imposible, infinita o fuera de rango | Rechazar | Rechazar |
+| INSERT con precio manipulado, estado confirmado o datos de pago | Rechazar | Rechazar |
+| INSERT sobre experiencia inactiva | Rechazar | Rechazar |
+| SELECT, UPDATE o DELETE de reservas por visitante | Denegar | Denegar |
+
+En ambas fases, confirmar desde una sesión autorizada que el historial y las
+reservas de transición conservan `NULL`, importes, estados y campos de pago sin
+cambios; verificar que el panel sigue reservado al administrador. Al probar INSERT
+públicos no solicitar retorno de filas con `.select()`: no hay permiso SELECT.
+La segunda fase no vuelve a comprobar fechas históricas para UPDATE de pagos;
+la integración de webhooks debe usar acceso exclusivo del servidor autorizado.
 
 ## Organización del código
 
@@ -239,11 +410,11 @@ migración editorial se haya aplicado por separado.
 - `src/app`: páginas, layout compartido, metadatos y estilos responsive.
 - `public/images`: fotografías locales, optimizadas al servirlas mediante `next/image`. Créditos en `CREDITOS.md`.
 
-Las páginas son componentes de servidor por defecto. `Header` usa `usePathname` para marcar la navegación activa. `ExperienceCatalog` recibe la lista mediante props y usa dos estados (`region` y `categoria`); los resultados se calculan a partir de esos estados. `ExperienceCard` recibe `experiencia`, `editorial` y `numero`. `ReservationButton` recibe `titulo` y usa `useState` para mostrar un aviso accesible.
+Las páginas son componentes de servidor por defecto. `Header` usa `usePathname` para marcar la navegación activa. `ExperienceCatalog` recibe la lista mediante props y usa dos estados (`region` y `categoria`); los resultados se calculan a partir de esos estados. `ExperienceCard` recibe `experiencia`, `editorial` y `numero`. `ReservationForm` usa una Server Action para guardar la reserva y muestra orientación estacional accesible al elegir la fecha. `ReservationButton` es un componente antiguo sin uso en las páginas actuales.
 
 ## Alcance de esta versión
 
-El contenido y los precios siguen siendo de ejemplo, pero la única fuente de datos en ejecución es Supabase. “Reservar” solo muestra un aviso: no registra reservas, no guarda datos y no inicia pagos.
+El contenido y los precios siguen siendo de ejemplo, pero la única fuente del catálogo en ejecución es Supabase. El formulario registra reservas pendientes con fecha de visita, nombre, email, cantidad y total verificado. No inicia pagos ni confirma la operación de una excursión.
 
 Las tres páginas de experiencias consultan en cada solicitud del servidor, sin
 precargar IDs durante el build. Los cambios en Supabase no requieren reconstruir
