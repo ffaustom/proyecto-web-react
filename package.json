@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --experimental-vm-modules --test tests/*.test.mjs",
+    "test:postgres": "python3 tests/postgres/checkout_real.py",
     "dev": "next dev",
     "build": "next build",
     "start": "next start"
