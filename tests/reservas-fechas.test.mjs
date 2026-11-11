@@ -255,10 +255,12 @@ const Form = await cargarComponente('app/experiencias/[id]/ReservationForm.jsx',
     useActionState() { return [respuesta, '/reserva-simulada', pending] },
   },
   './actions': { crearReserva() {} },
+  './checkout-actions': { iniciarCheckout() {}, empezarOtraReserva() {}, establecerIntentoCheckout() {} },
   '../../../lib/fechas.js': { hoyArgentina: () => '2099-01-15', validarFechaVisita },
   '../../../components/SeasonalRecommendation': { default: Recommendation },
 })
-function renderForm() { indice = 0; return Form({ experienciaId: 'senderos-del-fitz-roy', precio: 95000, hoyInicial: '2099-01-15' }) }
+function renderFormTree(props = {}) { indice = 0; return Form({ experienciaId: 'senderos-del-fitz-roy', precio: 95000, hoyInicial: '2099-01-15', ...props }) }
+function renderForm(props = {}) { return buscar(renderFormTree(props), node => node.type === 'form') }
 function buscar(node, predicate) {
   if (!node || typeof node !== 'object') return undefined
   if (predicate(node)) return node
@@ -301,4 +303,50 @@ test('formulario comprueba fecha al enviar y bloquea solo fecha vencida o invál
     assert.equal(focused, esperado)
     tree = renderForm()
   }
+})
+
+test('formulario habilitado anuncia checkout de prueba y bloquea doble clic mientras espera', () => {
+  let tree = renderForm({ checkoutToken: 'intento-firmado' })
+  assert.match(renderToStaticMarkup(tree), /Continuar al checkout de prueba/)
+  assert.match(renderToStaticMarkup(tree), /cuenta y las tarjetas de prueba/)
+  assert.equal(buscar(tree, node => node.type === 'button').props.disabled, false)
+  pending = true
+  tree = renderForm({ checkoutToken: 'intento-firmado' })
+  assert.equal(buscar(tree, node => node.type === 'button').props.disabled, true)
+  assert.match(renderToStaticMarkup(tree), /Preparando checkout/)
+  pending = false
+})
+
+test('antes de recibir cookie solo muestra la preparación de sesión, sin campos ni acción de reserva', () => {
+  const tree = renderForm({ checkoutInicial: 'candidato-firmado' })
+  assert.equal(buscar(tree, node => node.props?.name === 'email'), undefined)
+  assert.match(renderToStaticMarkup(tree), /Comenzar reserva de prueba/)
+  assert.doesNotMatch(renderToStaticMarkup(tree), /Continuar al checkout/)
+})
+
+test('reserva no pendiente impide pagar de nuevo y deja la opción de una compra distinta', () => {
+  const anterior = respuesta
+  try {
+    respuesta = { values: {}, errors: {}, error: 'Esta reserva ya no está pendiente.', reservaCreada: true, reservaNoPendiente: true }
+    const tree = renderFormTree({ checkoutToken: 'token', checkoutReanudado: true })
+    const html = renderToStaticMarkup(tree)
+    const button = buscar(tree, node => node.type === 'button')
+    assert.equal(button.props.disabled, true)
+    assert.equal(button.props.children, 'Reserva no pendiente')
+    assert.match(html, /Esta reserva ya no está pendiente/)
+    assert.doesNotMatch(html, /Reanudá tu intento|Continuar al checkout de prueba/)
+    assert.match(html, /Solo para una compra distinta/)
+  } finally {
+    respuesta = anterior
+  }
+})
+
+test('checkout permite enviar la fecha original para recuperar después de medianoche; el legado sigue estricto', () => {
+  let tree = renderForm({ checkoutToken: 'token' })
+  buscar(tree, node => node.props?.name === 'fecha_visita').props.onChange({ target: { value: '2000-01-01' } })
+  tree = renderForm({ checkoutToken: 'token' })
+  let bloqueado = false
+  tree.props.onSubmit({ preventDefault() { bloqueado = true } })
+  assert.equal(bloqueado, false)
+  assert.equal(buscar(tree, node => node.props?.name === 'fecha_visita').props.required, true)
 })

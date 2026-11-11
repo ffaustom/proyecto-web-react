@@ -336,7 +336,151 @@ Ningún consejo garantiza clima, fauna ni servicios.
 La fecha no cambia el cálculo en centavos, `total`, `estado = 'pendiente'` ni los
 campos existentes de Mercado Pago. La integración futura deberá asociar el pago
 al UUID de la reserva; elegir una fecha no inicia cobros ni confirma un servicio.
-No se guardan consejos derivados ni se agregan estructuras de pago por anticipado.
+No se guardan consejos derivados ni se bloquean fechas por temporada.
+
+### Checkout Pro de prueba (verificado en Preview)
+
+`src/lib/mercado-pago/server.js` exporta `crearPreferenciaParaReserva(reservaId)`.
+Es un helper `server-only`, no una Server Action ni una API pública. Recibe solo
+el UUID y consulta Supabase mediante un cliente privado separado. La Server Action
+`checkout-actions.js` autoriza ese UUID mediante un intento firmado por el servidor;
+conocer un UUID no habilita su checkout ni la lectura de datos personales.
+
+El importe proviene de `reservas.total`, calculado y validado al crear la reserva:
+es el precio contratado persistido, no un precio enviado por el navegador ni el
+precio actual del catálogo. El módulo convierte ese decimal a centavos y crea un
+ítem en ARS por el total, con `external_reference = reservas.id`. Solo permite
+reservas pendientes, con importe positivo, fecha vigente y experiencia activa;
+una fecha fuera de temporada sigue siendo válida. No modifica reservas históricas
+sin fecha: únicamente impide iniciar su checkout. Rechaza reservas que ya tengan
+una preferencia asociada para evitar crear otra de forma inadvertida.
+
+La petición usa `fetch` nativo hacia
+`https://api.mercadopago.com/checkout/preferences`, sin nuevas dependencias, sin
+caché, sin seguir redirecciones y con un timeout de 10 segundos. No se envían
+nombre ni email del turista. No se registran ni propagan cuerpos de errores del
+proveedor, credenciales o respuestas completas. No hay reintentos automáticos:
+ante una desconexión o respuesta incierta, la preferencia puede haberse creado.
+Antes de reintentar habrá que reconciliar por UUID con Mercado Pago.
+
+Configurar únicamente en desarrollo/Preview:
+
+- `MP_ACCESS_TOKEN`: credencial de prueba del vendedor indicado por Mercado Pago.
+  No imprimirla, versionarla ni usar el prefijo `NEXT_PUBLIC_`. El prefijo del
+  token no identifica de forma fiable su entorno: los vendedores de prueba
+  también pueden tener tokens `APP_USR`. Confirmar su procedencia en el panel.
+- `MP_TEST_MODE=true`: habilitación explícita. Es una protección de configuración,
+  no una verificación del tipo de credencial ante Mercado Pago. El módulo también
+  bloquea `VERCEL_ENV=production`.
+- `APP_URL`: origen HTTPS del Preview, sin ruta, query ni credenciales. Produce
+  las tres `back_urls` hacia `/pago/resultado?resultado=success|pending|failure`.
+- `MP_NOTIFICATION_URL` (opcional): URL HTTPS del webhook. Por defecto usa
+  `${APP_URL}/api/mercado-pago/webhook`.
+- `SUPABASE_SERVICE_ROLE_KEY`: clave privada exclusiva del backend, junto con
+  `NEXT_PUBLIC_SUPABASE_URL`, para consultar reservas. No usa sesiones de Auth.
+  La clave omite RLS pero no reemplaza los permisos SQL: verificar `SELECT` para
+  `service_role` en `reservas` y `experiencias` antes de probar con el remoto.
+  La migración `20261110130000_grant_service_role_checkout_columns.sql` concede
+  los permisos mínimos por columna: lectura operativa de reservas y de
+  `experiencias(id, titulo, activo)`, y UPDATE solo de estado y los tres campos de
+  Mercado Pago. No concede INSERT, acceso a nombre/email ni cambios de importe,
+  cantidad o fecha. Fue aplicada y sus permisos se verificaron en el remoto; no cambia políticas
+  RLS ni permisos públicos. Su alcance cubre este helper y las futuras lecturas
+  y actualizaciones de la reserva desde el webhook; no implementa autenticación,
+  idempotencia ni permisos para futuras tablas o funciones de pagos.
+- `CHECKOUT_SIGNING_SECRET`: secreto aleatorio independiente de al menos 32 bytes,
+  solo del servidor, estable entre despliegues para reanudar el intento. No usar
+  claves de Supabase o Mercado Pago como secreto de firma.
+- `MP_CHECKOUT_ENABLED=false`: mantener deshabilitado hasta aplicar y verificar
+  la nueva migración de coordinación. Luego usar `true` solo en desarrollo/Preview.
+
+Devuelve solo `{ id, init_point, external_reference }`. La URL `init_point` de
+Mercado Pago se conserva para el circuito del vendedor de prueba. No determina
+el entorno únicamente por la URL del checkout.
+
+Con la habilitación apagada se conserva `crearReserva`, incluido el tratamiento
+de formularios antiguos sin fecha. Con checkout habilitado, el mismo formulario
+usa `iniciarCheckout` y `validarReserva` sin la excepción de fecha ausente.
+Antes de mostrar el formulario, «Comenzar reserva de prueba» establece una cookie
+en una petición independiente que no crea reservas ni preferencias. El servidor
+exige recibir esa cookie en la siguiente petición antes de crear la reserva.
+El candidato firmado de la página es el mismo en un doble clic; no se genera
+otro UUID al enviar o reintentar la reserva. El intento tiene UUID, experiencia y
+vencimiento de 24 horas, sin datos personales. La cookie HttpOnly, SameSite=Lax y
+Secure en despliegues HTTPS permite reusar el intento después de una recarga,
+incluso si se pierde la respuesta de la creación. No se guardan campos personales en
+cookies o localStorage. La firma es una autorización portadora: no debe publicarse
+ni registrarse. Al reanudar se deben ingresar los mismos datos; empezar otra
+reserva es una acción explícita y conserva la anterior. Una sesión nueva o vencida
+puede iniciar otra compra: no hay deduplicación global de personas.
+
+La migración **aplicada y verificada en el remoto del proyecto**
+`20261110140000_prepare_checkout_idempotent.sql` crea `checkout_intentos` y la RPC
+`operar_checkout`, ejecutable solo por `service_role`. Su función SECURITY DEFINER
+tiene search_path vacío, valida los campos y calcula el importe con el precio de
+Supabase bajo bloqueo. En una transacción, crea reserva e intento y reclama el
+único POST a Mercado Pago usando un bloqueo transaccional por UUID. No concede
+INSERT directo a los roles de aplicación ni modifica las políticas existentes.
+Las migraciones de permisos y coordinación fueron aplicadas por el responsable y
+verificadas mediante consultas de solo lectura. El checkout permanece deshabilitado
+por defecto hasta configurar y habilitar explícitamente las pruebas en Preview.
+Si falta configuración obligatoria o la firma es insuficiente, no se habilita.
+
+El coordinador `lib/mercado-pago/checkout.js` guarda la preferencia mediante la RPC
+antes de devolver la redirección. Los envíos simultáneos usan el mismo UUID y solo
+uno puede crear la preferencia. Los reintentos recuperan la preferencia guardada
+por ID o buscan por `external_reference` y verifican su detalle, moneda e importe.
+Solo un rechazo HTTP inequívoco libera el permiso de creación. Tras timeout,
+desconexión o 5xx, la ausencia de resultados de búsqueda **no** autoriza otro POST:
+puede haber una petición todavía en curso o una búsqueda aún desactualizada.
+El caso de proceso interrumpido antes de enviar el POST queda conservadoramente
+bloqueado hasta revisión operativa; no hay liberación automática por tiempo.
+No se intenta prometer una transacción distribuida entre Supabase y Mercado Pago.
+La interfaz muestra la referencia y requiere revisión cuando no puede determinarse
+el resultado. El [procedimiento de recuperación](docs/checkout-recuperacion.md)
+indica qué comprobar y cuándo NO liberar un intento.
+
+Después de medianoche se permite recuperar una preferencia previa con la fecha
+original. La RPC sigue rechazando fechas pasadas antes de crear una reserva o
+reclamar un POST nuevo; el helper de recuperación verifica que la preferencia
+no esté vencida. No se cambian fechas guardadas ni recomendaciones por temporada.
+
+La ruta `/pago/resultado` es informativa: ignora parámetros de pago y no consulta
+ni modifica reservas. El parámetro `resultado=success` nunca se interpreta como
+prueba de aprobación. La confirmación por webhook está implementada en
+`POST /api/mercado-pago/webhook`: requiere su propia configuración y la migración
+`20261111120000_registrar_pago_verificado.sql`, **aplicada en Supabase remoto
+según confirmación del responsable del proyecto**.
+Ver [configuración, validaciones y límites del webhook](docs/mercado-pago-webhook.md).
+También está aplicada la correctiva `20261111150000_allow_approved_payment_timestamp_tie.sql`,
+según confirmación del responsable. Permite `pending/rejected → approved` del mismo
+pago con timestamp igual, sin revertir reservas confirmadas ni aceptar eventos anteriores.
+El Preview se verificó con aprobado, rechazado y Rapipago pendiente. La simulación
+duplicada conservó los datos y una sola reserva; su recepción HTTP no se comprobó.
+Ver la [tabla de evidencias y sus límites](docs/mercado-pago-webhook.md#evidencia-de-pruebas-en-preview).
+Production mantiene el bloqueo de checkout y webhook; no habilitar cobros reales.
+
+`tests/mercado-pago.test.mjs` ejecuta el módulo real con Supabase y la API simulados:
+importe persistido, UUID, URLs, fechas, modo de prueba, errores HTTP/red/JSON y
+ausencia de escrituras o filtraciones de credenciales. No carga `.env.local` ni
+realiza peticiones reales a Mercado Pago. `tests/checkout-flow.test.mjs` cubre
+firmas, autorización, fecha estricta, concurrencia simulada, fallos parciales,
+recuperación y retorno sin confirmación. Estas pruebas no ejecutan SQL.
+`PG_BIN_DIR=/ruta/postgresql/bin npm run test:postgres` ejecuta además las migraciones
+relevantes y pruebas reales en un cluster privado temporal creado por la suite,
+sin TCP ni conexión a bases existentes. Sus 30 pruebas pasaron en PostgreSQL 17.11:
+comprueban compilación, roles, transacciones, rollback, concurrencia, recuperación
+con fecha pasada y empate de timestamps. Esta suite ejecuta migraciones locales;
+no usarla cuando la tarea prohíba ejecutar migraciones. Ejecutar también `npm test`
+y `npm run build`.
+
+`.github/workflows/ci.yml` define un check para Pull Requests con Node.js 24:
+`npm ci`, `npm test` y `npm run build`. Usa permisos de lectura, no requiere
+secretos ni variables de Supabase/Mercado Pago y no despliega ni ejecuta SQL.
+Su primera ejecución en GitHub queda pendiente de publicar el workflow.
+
+Referencias: [Preferences API](https://www.mercadopago.com.ar/developers/es/reference/online-payments/checkout-pro-preferences/overview)
+y [cuentas de prueba de Checkout Pro](https://www.mercadopago.com.ar/developers/es/docs/checkout-pro-preferences/test-accounts).
 
 ### Verificación de fechas
 
@@ -414,7 +558,7 @@ Las páginas son componentes de servidor por defecto. `Header` usa `usePathname`
 
 ## Alcance de esta versión
 
-El contenido y los precios siguen siendo de ejemplo, pero la única fuente del catálogo en ejecución es Supabase. El formulario registra reservas pendientes con fecha de visita, nombre, email, cantidad y total verificado. No inicia pagos ni confirma la operación de una excursión.
+El contenido y los precios siguen siendo de ejemplo, pero la única fuente del catálogo en ejecución es Supabase. El formulario registra reservas con fecha de visita, nombre, email, cantidad y total verificado. Checkout Pro y webhook se verificaron en Preview con cuentas de prueba: aprobado confirma; rechazado y pendiente conservan la reserva pendiente. Las migraciones del webhook y su corrección temporal están aplicadas. Production mantiene los pagos deshabilitados. No gestiona cupos ni disponibilidad de excursiones.
 
 Las tres páginas de experiencias consultan en cada solicitud del servidor, sin
 precargar IDs durante el build. Los cambios en Supabase no requieren reconstruir

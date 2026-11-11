@@ -1,6 +1,6 @@
 import { validarFechaVisita, hoyArgentina } from '../../../lib/fechas.js'
 
-export function validarReserva(formData, hoy = hoyArgentina(), { permitirFechaAusente = false } = {}) {
+export function validarReserva(formData, hoy = hoyArgentina(), { permitirFechaAusente = false, permitirFechaPasada = false } = {}) {
   const texto = (campo) => {
     const valor = formData.get(campo)
     return typeof valor === 'string' ? valor.trim() : ''
@@ -15,7 +15,9 @@ export function validarReserva(formData, hoy = hoyArgentina(), { permitirFechaAu
   // Solo la ausencia del campo identifica una solicitud del formulario anterior.
   // Un campo enviado vacío, malformado o como archivo nunca usa esta excepción.
   const fechaAntigua = permitirFechaAusente && !formData.has('fecha_visita')
-  const errorFecha = fechaAntigua ? '' : validarFechaVisita(values.fecha_visita, hoy)
+  // La excepción de fecha pasada es solo para recuperar un checkout existente.
+  // La RPC exige hoy/futuro antes de crear una reserva o reclamar un nuevo POST.
+  const errorFecha = fechaAntigua ? '' : validarFechaVisita(values.fecha_visita, permitirFechaPasada ? '0001-01-01' : hoy)
   if (errorFecha) errors.fecha_visita = errorFecha
   if (!values.nombre_comprador || values.nombre_comprador.length > 200) {
     errors.nombre_comprador = 'Ingresá tu nombre (hasta 200 caracteres).'

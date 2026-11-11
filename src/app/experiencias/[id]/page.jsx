@@ -6,6 +6,8 @@ import { formatearPrecio } from '../../../lib/formato'
 import ExperienceGallery from '../../../components/ExperienceGallery'
 import ExperienceStory from '../../../components/ExperienceStory'
 import { hoyArgentina } from '../../../lib/fechas.js'
+import { cookies } from 'next/headers'
+import { checkoutHabilitado, crearIntentoCheckout, verificarIntentoCheckout, nombreCookieCheckout } from '../../../lib/mercado-pago/intento'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +21,20 @@ export default async function ExperiencePage({ params }) {
   const { id } = await params
   const experiencia = await obtenerExperiencia(id)
   if (!experiencia) notFound()
+  let checkoutToken = null
+  let checkoutInicial = null
+  let checkoutReanudado = false
+  if (checkoutHabilitado()) {
+    const anterior = (await cookies()).get(nombreCookieCheckout(experiencia.id))?.value
+    if (anterior) {
+      try {
+        verificarIntentoCheckout(anterior, experiencia.id)
+        checkoutToken = anterior
+        checkoutReanudado = true
+      } catch { /* Una firma inválida o vencida no autoriza un intento anterior. */ }
+    }
+    if (!checkoutToken) checkoutInicial = crearIntentoCheckout(experiencia.id)
+  }
 
   return (
     <main id="contenido" className="container detail-page">
@@ -40,7 +56,8 @@ export default async function ExperiencePage({ params }) {
           <p className="detail-price">{formatearPrecio(experiencia.precio)} <span>ARS</span></p>
           <p className="per-person">por persona</p>
           <dl><div><dt>Duración</dt><dd>{experiencia.duracion}</dd></div><div><dt>Categoría</dt><dd>{experiencia.categoria}</dd></div><div><dt>Región</dt><dd>{experiencia.region}</dd></div></dl>
-          <ReservationForm experienciaId={experiencia.id} precio={experiencia.precio} hoyInicial={hoyArgentina()} />
+          <ReservationForm experienciaId={experiencia.id} precio={experiencia.precio} hoyInicial={hoyArgentina()}
+            checkoutToken={checkoutToken} checkoutInicial={checkoutInicial} checkoutReanudado={checkoutReanudado} />
         </aside>
       </div>
       <div className="detail-bottom"><p>Hay más Argentina por descubrir.</p><Link className="text-link" href="/experiencias">Seguir explorando ↗</Link></div>
