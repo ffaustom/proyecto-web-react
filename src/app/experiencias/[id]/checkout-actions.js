@@ -48,7 +48,8 @@ export async function iniciarCheckout(experienciaId, token, _previousState, form
     return { values, errors: {}, error: error instanceof ErrorCheckout ? error.message
       : 'No pudimos iniciar el checkout. Actualizá la página si tu sesión venció; si ya enviaste la reserva, reintentá con los mismos datos.',
     reservaCreada: error instanceof ErrorCheckout && error.reservaCreada,
-    requiereRevision: error instanceof ErrorCheckout && error.requiereRevision }
+    requiereRevision: error instanceof ErrorCheckout && error.requiereRevision,
+    reservaNoPendiente: error instanceof ErrorCheckout && error.reservaNoPendiente }
   }
   redirect(destino)
 }

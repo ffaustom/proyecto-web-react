@@ -34,7 +34,7 @@ async function flujo({ falloGuardado = false, respuestaPerdida = false, rechazo 
   const state = { reserva: null, estado: null, preferencia: null, remota: null, posts: 0, operaciones: [] }
   const client = { async rpc(_nombre, args) {
     state.operaciones.push(args.p_operacion)
-    if (rpcError) return { error: { message: 'secreto que nunca debe salir' } }
+    if (rpcError) return { error: { message: typeof rpcError === 'string' ? rpcError : 'secreto que nunca debe salir' } }
     if (args.p_operacion === 'preparar') {
       const datos = [args.p_experiencia_id, args.p_nombre, args.p_email, args.p_cantidad, args.p_fecha]
       if (state.reserva && JSON.stringify(state.reserva.datos) !== JSON.stringify(datos)) return { error: { message: 'CHECKOUT_DATOS_DISTINTOS' } }
@@ -175,7 +175,7 @@ test('checkout permanece deshabilitado con configuración incompleta o firma ins
   assert.equal((await firma({ APP_URL: 'http://localhost:3000' })).checkoutHabilitado(), false)
 })
 
-async function accion({ enabled = true, invalidToken = false, configError = false, prepareError = null, cookie = 'token-firmado' } = {}) {
+async function accion({ enabled = true, invalidToken = false, configError = false, prepareError = null, reservaNoPendiente = false, cookie = 'token-firmado' } = {}) {
   const calls = { prepare: [], cookies: [], redirects: [] }
   const { ErrorCheckout } = await flujo()
   const exports = await modulo('app/experiencias/[id]/checkout-actions.js', {
@@ -184,7 +184,7 @@ async function accion({ enabled = true, invalidToken = false, configError = fals
     './validacion': { validarReserva },
     '../../../lib/mercado-pago/checkout': { ErrorCheckout, prepararCheckout: async (...args) => {
       calls.prepare.push(args)
-      if (prepareError) throw new ErrorCheckout(prepareError, true)
+      if (prepareError) throw new ErrorCheckout(prepareError, true, false, reservaNoPendiente)
       return checkoutUrl
     } },
     '../../../lib/mercado-pago/server': { verificarConfiguracionMercadoPago: () => { if (configError) throw new Error('configuración privada') } },
@@ -279,6 +279,28 @@ test('retorno no confirma pagos ni expone parámetros manipulados', async () => 
   const html = renderToStaticMarkup(React.createElement(Resultado, { searchParams: { status: 'approved', email: 'dato-privado@example.com' } }))
   assert.match(html, /no confirma el pago/)
   assert.doesNotMatch(html, /approved|dato-privado/)
+  assert.match(html, /Solo si el pago fue rechazado/)
+  assert.match(html, /no inicies otro pago/)
+})
+
+test('reserva no pendiente devuelve un error terminal sin solicitar preferencias', async () => {
+  const { prepararCheckout, state } = await flujo({ rpcError: 'CHECKOUT_RESERVA_NO_PENDIENTE' })
+  await assert.rejects(prepararCheckout(id, experienciaId, values, 2), error => {
+    assert.equal(error.reservaNoPendiente, true)
+    assert.match(error.message, /No vuelvas a intentar el pago/)
+    assert.doesNotMatch(error.message, /confirmada|CHECKOUT_|secreto/)
+    return true
+  })
+  assert.equal(state.posts, 0)
+  assert.deepEqual(state.operaciones, ['preparar'])
+})
+
+test('Server Action transmite el estado terminal sin redirigir ni acreditar pagos', async () => {
+  const { iniciarCheckout, calls } = await accion({ prepareError: 'Esta reserva ya no está pendiente.', reservaNoPendiente: true })
+  const result = await iniciarCheckout(experienciaId, 'token-firmado', null, form())
+  assert.equal(result.reservaNoPendiente, true)
+  assert.equal(result.success, undefined)
+  assert.equal(calls.redirects.length, 0)
 })
 
 test('RPC restringida al backend, con bloqueo durable, importe en base y sin cambios a RLS anterior', async () => {

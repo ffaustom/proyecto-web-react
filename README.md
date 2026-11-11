@@ -338,7 +338,7 @@ campos existentes de Mercado Pago. La integración futura deberá asociar el pag
 al UUID de la reserva; elegir una fecha no inicia cobros ni confirma un servicio.
 No se guardan consejos derivados ni se bloquean fechas por temporada.
 
-### Checkout Pro de prueba (conexión preparada, habilitación pendiente)
+### Checkout Pro de prueba (verificado en Preview)
 
 `src/lib/mercado-pago/server.js` exporta `crearPreferenciaParaReserva(reservaId)`.
 Es un helper `server-only`, no una Server Action ni una API pública. Recibe solo
@@ -452,7 +452,13 @@ prueba de aprobación. La confirmación por webhook está implementada en
 `20261111120000_registrar_pago_verificado.sql`, **aplicada en Supabase remoto
 según confirmación del responsable del proyecto**.
 Ver [configuración, validaciones y límites del webhook](docs/mercado-pago-webhook.md).
-La conexión remota y su prueba integral siguen pendientes; no habilitar cobros reales.
+También está aplicada la correctiva `20261111150000_allow_approved_payment_timestamp_tie.sql`,
+según confirmación del responsable. Permite `pending/rejected → approved` del mismo
+pago con timestamp igual, sin revertir reservas confirmadas ni aceptar eventos anteriores.
+El Preview se verificó con aprobado, rechazado y Rapipago pendiente. La simulación
+duplicada conservó los datos y una sola reserva; su recepción HTTP no se comprobó.
+Ver la [tabla de evidencias y sus límites](docs/mercado-pago-webhook.md#evidencia-de-pruebas-en-preview).
+Production mantiene el bloqueo de checkout y webhook; no habilitar cobros reales.
 
 `tests/mercado-pago.test.mjs` ejecuta el módulo real con Supabase y la API simulados:
 importe persistido, UUID, URLs, fechas, modo de prueba, errores HTTP/red/JSON y
@@ -462,9 +468,16 @@ firmas, autorización, fecha estricta, concurrencia simulada, fallos parciales,
 recuperación y retorno sin confirmación. Estas pruebas no ejecutan SQL.
 `PG_BIN_DIR=/ruta/postgresql/bin npm run test:postgres` ejecuta además las migraciones
 relevantes y pruebas reales en un cluster privado temporal creado por la suite,
-sin TCP ni conexión a bases existentes. Comprueba compilación, roles, transacciones,
-rollback, concurrencia y recuperación con fecha pasada. No reemplaza la prueba
-posterior de PostgREST/Vercel. Ejecutar también `npm test` y `npm run build`.
+sin TCP ni conexión a bases existentes. Sus 30 pruebas pasaron en PostgreSQL 17.11:
+comprueban compilación, roles, transacciones, rollback, concurrencia, recuperación
+con fecha pasada y empate de timestamps. Esta suite ejecuta migraciones locales;
+no usarla cuando la tarea prohíba ejecutar migraciones. Ejecutar también `npm test`
+y `npm run build`.
+
+`.github/workflows/ci.yml` define un check para Pull Requests con Node.js 24:
+`npm ci`, `npm test` y `npm run build`. Usa permisos de lectura, no requiere
+secretos ni variables de Supabase/Mercado Pago y no despliega ni ejecuta SQL.
+Su primera ejecución en GitHub queda pendiente de publicar el workflow.
 
 Referencias: [Preferences API](https://www.mercadopago.com.ar/developers/es/reference/online-payments/checkout-pro-preferences/overview)
 y [cuentas de prueba de Checkout Pro](https://www.mercadopago.com.ar/developers/es/docs/checkout-pro-preferences/test-accounts).
@@ -545,7 +558,7 @@ Las páginas son componentes de servidor por defecto. `Header` usa `usePathname`
 
 ## Alcance de esta versión
 
-El contenido y los precios siguen siendo de ejemplo, pero la única fuente del catálogo en ejecución es Supabase. El formulario registra reservas pendientes con fecha de visita, nombre, email, cantidad y total verificado. Checkout Pro de prueba requiere habilitación explícita. El webhook para confirmar pagos verificados está implementado y su migración está aplicada; la conexión y prueba integral del webhook en Preview quedan pendientes. No gestiona cupos ni disponibilidad de excursiones.
+El contenido y los precios siguen siendo de ejemplo, pero la única fuente del catálogo en ejecución es Supabase. El formulario registra reservas con fecha de visita, nombre, email, cantidad y total verificado. Checkout Pro y webhook se verificaron en Preview con cuentas de prueba: aprobado confirma; rechazado y pendiente conservan la reserva pendiente. Las migraciones del webhook y su corrección temporal están aplicadas. Production mantiene los pagos deshabilitados. No gestiona cupos ni disponibilidad de excursiones.
 
 Las tres páginas de experiencias consultan en cada solicitud del servidor, sin
 precargar IDs durante el build. Los cambios en Supabase no requieren reconstruir

@@ -4,7 +4,17 @@ Las migraciones de permisos y coordinación ya están aplicadas y verificadas en
 remoto del proyecto. El checkout permanece deshabilitado por defecto hasta configurar
 y habilitar las pruebas en Preview. En otros destinos deben verificarse primero
 sus migraciones. Este documento no autoriza ejecutar operaciones en Production.
-No hay webhook implementado ni confirmación de pagos desde las URLs de retorno.
+El webhook está implementado y verificado con pagos de prueba; las URLs de retorno
+no confirman pagos. Ver [evidencias y límites](mercado-pago-webhook.md#evidencia-de-pruebas-en-preview).
+
+## Reserva que ya no está pendiente
+
+Si la RPC devuelve `CHECKOUT_RESERVA_NO_PENDIENTE`, el formulario informa que no
+debe volver a intentarse el pago y deshabilita ese envío. El mensaje no afirma que
+la reserva esté confirmada: también puede tener otro estado terminal. No se
+consulta ni acredita un pago a partir de los parámetros de retorno.
+«Empezar otra reserva» se conserva únicamente para una compra distinta. Una
+reserva confirmada no puede reabrirse mediante el flujo de recuperación.
 
 ## Identificador antes de crear una reserva
 
@@ -98,7 +108,11 @@ La suite crea su propio cluster privado y efímero en `/tmp`, con TCP deshabilit
 y lo detiene/elimina al finalizar. No admite URLs de bases existentes, no carga
 `.env.local` y no usa Supabase o Mercado Pago. Aplica allí los archivos reales de
 las migraciones relevantes y comprueba permisos, compilación, preservación del
-historial, rollback DDL/DML y concurrencia con conexiones independientes.
+historial, rollback DDL/DML y concurrencia con conexiones independientes. Las 30
+pruebas pasaron en PostgreSQL 17.11; incluyen las 23 originales y siete regresiones
+de la correctiva `20261111150000_allow_approved_payment_timestamp_tie.sql`, ya
+aplicada en Supabase remoto según confirmación del responsable. No editar ni
+volver a aplicar migraciones que ya figuren en el historial remoto.
 
 El caso de medianoche se reproduce con filas de prueba que representan un intento
 iniciado ayer. No se modifica el reloj del sistema. Estas pruebas complementan

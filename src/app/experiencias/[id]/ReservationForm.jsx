@@ -91,9 +91,9 @@ export default function ReservationForm({ experienciaId, precio, hoyInicial, che
       <p className="reservation-hint">{checkoutToken
         ? 'Checkout de prueba: usá solamente la cuenta y las tarjetas de prueba de Mercado Pago. El importe se verifica al reservar.'
         : 'El total se verifica con el precio vigente al reservar. Sin pago online por ahora.'}</p>
-      {checkoutToken && (checkoutReanudado || state.reservaCreada) && <p className="reservation-hint">Reanudá tu intento con los mismos datos para conservar la reserva.</p>}
+      {checkoutToken && !state.reservaNoPendiente && (checkoutReanudado || state.reservaCreada) && <p className="reservation-hint">Reanudá tu intento con los mismos datos para conservar la reserva.</p>}
       {state.error && <p className="admin-error" role="alert">{state.error}</p>}
-      <button className="button" type="submit" disabled={pending}>{pending ? (checkoutToken ? 'Preparando checkout…' : 'Guardando…')
+      <button className="button" type="submit" disabled={pending || !!state.reservaNoPendiente}>{state.reservaNoPendiente ? 'Reserva no pendiente' : pending ? (checkoutToken ? 'Preparando checkout…' : 'Guardando…')
         : checkoutToken ? 'Continuar al checkout de prueba' : 'Crear reserva'}</button>
     </form>
     {checkoutToken && !state.requiereRevision && (checkoutReanudado || state.reservaCreada) && <form action={empezarOtraReserva.bind(null, experienciaId, checkoutToken)}>

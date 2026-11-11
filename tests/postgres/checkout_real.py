@@ -21,6 +21,7 @@ MIGRATIONS = ROOT / 'supabase' / 'migrations'
 MIGRATION = '20261110140000_prepare_checkout_idempotent.sql'
 SIGNATURE = 'public.operar_checkout(text,uuid,text,text,text,integer,date,text)'
 PAYMENT_MIGRATION = '20261111120000_registrar_pago_verificado.sql'
+PAYMENT_TIMESTAMP_FIX = '20261111150000_allow_approved_payment_timestamp_tie.sql'
 PAYMENT_SIGNATURE = 'public.registrar_pago_verificado(uuid,text,text,text,numeric,text,timestamptz)'
 BIN = Path(os.environ.get('PG_BIN_DIR', '/no-configurado'))
 library = os.environ.get('PG_LIBPQ') or ctypes.util.find_library('pq')
@@ -145,6 +146,17 @@ class CheckoutPostgres(unittest.TestCase):
             conn.query((MIGRATIONS / PAYMENT_MIGRATION).read_text())
             cls.payment_after = cls.snapshot_data(conn)
             cls.payment_policies = conn.scalar("SELECT jsonb_agg(to_jsonb(p) ORDER BY policyname)::text FROM pg_policies p WHERE schemaname='public'")
+            # Una fila con pago previo comprueba que reemplazar la función no hace backfill.
+            prior_id = uuid.uuid4()
+            conn.query(prepare(prior_id))
+            conn.query(operation('guardar', prior_id, 'preferencia-previa-correccion'))
+            conn.query(payment(prior_id, 'preferencia-previa-correccion', '9999999999999999999', status='pending'))
+            cls.fix_before = cls.snapshot_data(conn)
+            cls.fix_acl_before = conn.scalar("SELECT proacl::text FROM pg_proc WHERE oid=%s::regprocedure" % literal(PAYMENT_SIGNATURE))
+            conn.query((MIGRATIONS / PAYMENT_TIMESTAMP_FIX).read_text())
+            cls.fix_after = cls.snapshot_data(conn)
+            cls.fix_acl_after = conn.scalar("SELECT proacl::text FROM pg_proc WHERE oid=%s::regprocedure" % literal(PAYMENT_SIGNATURE))
+            cls.fix_policies = conn.scalar("SELECT jsonb_agg(to_jsonb(p) ORDER BY policyname)::text FROM pg_policies p WHERE schemaname='public'")
             print('PostgreSQL real:', conn.scalar('SHOW server_version'), '| cluster privado temporal, sin TCP', flush=True)
 
     @classmethod
@@ -484,6 +496,91 @@ class CheckoutPostgres(unittest.TestCase):
             conn.query('ROLLBACK')
             self.assertEqual(conn.scalar("SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='reservas' AND column_name='mercado_pago_updated_at'"), '0')
             self.assertEqual(before, self.snapshot_data(conn))
+
+
+    def test_24_same_timestamp_pending_or_rejected_to_approved(self):
+        for status in ['pending', 'rejected']:
+            with self.subTest(status=status):
+                reservation_id, preference, payment_id = self.payment_fixture()
+                self.assertEqual(self.payment_rpc(payment(reservation_id, preference, payment_id, status=status)), 'aplicado')
+                before = self.reservation(reservation_id)
+                self.assertEqual(self.payment_rpc(payment(reservation_id, preference, payment_id)), 'aplicado')
+                after = self.reservation(reservation_id)
+                self.assertEqual(after['estado'], 'confirmada')
+                self.assertEqual(after['mercado_pago_status'], 'approved')
+                # Solo cambian estado de reserva y estado del pago, no identidad ni fecha.
+                for key in before.keys() - {'estado', 'mercado_pago_status'}:
+                    self.assertEqual(before[key], after[key], key)
+                self.assertEqual(self.payment_rpc(payment(reservation_id, preference, payment_id)), 'ignorado')
+                self.assertEqual(after, self.reservation(reservation_id))
+
+    def test_25_older_approval_does_not_override_same_payment(self):
+        for status in ['pending', 'rejected']:
+            with self.subTest(status=status):
+                reservation_id, preference, payment_id = self.payment_fixture()
+                self.payment_rpc(payment(reservation_id, preference, payment_id, status=status))
+                before = self.reservation(reservation_id)
+                self.assertEqual(self.payment_rpc(payment(reservation_id, preference, payment_id,
+                    updated='2026-11-11T11:59:59.999999Z')), 'duplicado')
+                self.assertEqual(before, self.reservation(reservation_id))
+
+    def test_26_equal_timestamp_non_approved_duplicates_do_not_change_rows(self):
+        for initial in ['pending', 'rejected']:
+            reservation_id, preference, payment_id = self.payment_fixture()
+            self.payment_rpc(payment(reservation_id, preference, payment_id, status=initial))
+            before = self.reservation(reservation_id)
+            for status in ['pending', 'rejected', 'in_process', 'authorized', 'cancelled']:
+                with self.subTest(initial=initial, status=status):
+                    self.assertEqual(self.payment_rpc(payment(reservation_id, preference, payment_id, status=status)), 'duplicado')
+                    self.assertEqual(before, self.reservation(reservation_id))
+
+    def test_27_equal_timestamp_approval_still_validates_payment_binding(self):
+        reservation_id, preference, payment_id = self.payment_fixture()
+        other_id, _, _ = self.payment_fixture()
+        self.payment_rpc(payment(reservation_id, preference, payment_id, status='pending'))
+        before, other = self.reservation(reservation_id), self.reservation(other_id)
+        for target, pref, kwargs in [
+            (reservation_id, preference, dict(amount='1')),
+            (reservation_id, preference, dict(currency='USD')),
+            (reservation_id, 'preferencia-ajena', {}),
+            (other_id, preference, {}),
+            (uuid.uuid4(), preference, {}),
+        ]:
+            with self.subTest(target=target, preference=pref, kwargs=kwargs), self.assertRaises(SqlError):
+                self.payment_rpc(payment(target, pref, payment_id, **kwargs))
+            self.assertEqual(before, self.reservation(reservation_id))
+            self.assertEqual(other, self.reservation(other_id))
+
+    def test_28_confirmed_reservation_is_terminal_at_equal_timestamp(self):
+        reservation_id, preference, payment_id = self.payment_fixture()
+        self.payment_rpc(payment(reservation_id, preference, payment_id))
+        before = self.reservation(reservation_id)
+        for status in ['pending', 'rejected', 'approved']:
+            for attempt in [payment_id, str(int(payment_id) + 1)]:
+                with self.subTest(status=status, attempt=attempt):
+                    self.assertEqual(self.payment_rpc(payment(reservation_id, preference, attempt, status=status)), 'ignorado')
+                    self.assertEqual(before, self.reservation(reservation_id))
+
+    def test_29_timestamp_fix_preserves_history_and_authorization(self):
+        self.assertEqual(self.fix_before, self.fix_after)
+        self.assertEqual(self.payment_policies, self.fix_policies)
+        self.assertEqual(self.fix_acl_before, self.fix_acl_after)
+        with Connection(self.socket) as conn:
+            self.assertEqual(conn.scalar("SELECT prosecdef::text FROM pg_proc WHERE oid=%s::regprocedure" % literal(PAYMENT_SIGNATURE)), 'true')
+            self.assertEqual(json.loads(conn.scalar("SELECT array_to_json(proconfig)::text FROM pg_proc WHERE oid=%s::regprocedure" % literal(PAYMENT_SIGNATURE))), ['search_path=""'])
+
+    def test_30_concurrent_equal_timestamp_approvals_apply_once(self):
+        reservation_id, preference, payment_id = self.payment_fixture()
+        self.payment_rpc(payment(reservation_id, preference, payment_id, status='pending'))
+        sql = payment(reservation_id, preference, payment_id)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: self.payment_rpc(sql), range(2)))
+        self.assertCountEqual(results, ['aplicado', 'ignorado'])
+        row = self.reservation(reservation_id)
+        self.assertEqual(row['estado'], 'confirmada')
+        self.assertEqual(row['mercado_pago_payment_id'], payment_id)
+        with Connection(self.socket) as conn:
+            self.assertEqual(conn.scalar('SELECT count(*) FROM public.reservas WHERE id=%s' % literal(reservation_id)), '1')
 
 
 if __name__ == '__main__':

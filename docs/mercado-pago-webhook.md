@@ -1,8 +1,8 @@
 # Confirmación de pagos de prueba
 
-El checkout ya abre en el Preview. El responsable confirmó que las 23 pruebas
-PostgreSQL reales pasaron y que la migración del webhook se aplicó en Supabase
-remoto. La conexión del webhook requiere los pasos de configuración siguientes.
+Checkout y webhook están verificados en Preview con cuentas de prueba. Las 30
+pruebas PostgreSQL reales pasaron; el responsable confirmó que la migración del
+webhook y su correctiva de timestamps se aplicaron en Supabase remoto.
 
 ## Conectar el webhook en Preview
 
@@ -13,6 +13,9 @@ remoto. La conexión del webhook requiere los pasos de configuración siguientes
    permisos de service_role y coordinación de checkout ya existentes. Agrega
    `reservas.mercado_pago_updated_at` y la RPC `registrar_pago_verificado`.
    Sin ella el endpoint devuelve 503 al intentar persistir y MP puede reintentar.
+   La correctiva `20261111150000_allow_approved_payment_timestamp_tie.sql` también
+   está aplicada: no repetirla. Solo reemplaza la función para admitir una
+   aprobación del mismo pago con timestamp igual; no hace backfill ni cambia RLS.
 2. En Mercado Pago Developers, seleccionar la aplicación correspondiente al
    vendedor de prueba y configurar Webhooks para pagos (`payment`, Payments API
    de Checkout Pro mediante preferencias; no Orders API ni IPN). Usar como URL
@@ -68,6 +71,9 @@ La publicación del código no configura variables de Vercel ni realiza pagos.
   no se sobrescriben. Duplicados y observaciones atrasadas del mismo pago no
   producen cambios. Entre intentos distintos, una aprobación puede reemplazar
   un rechazo, pero nunca se reemplaza una aprobación ya aplicada.
+  Para el mismo pago, un `approved` con timestamp igual puede confirmar una
+  reserva pendiente. Eventos con fecha estrictamente anterior siguen descartados;
+  los duplicados no aprobados con fecha igual no sobrescriben el estado.
 - Reembolsos, contracargos y otros estados quedan registrados como
   `estado_no_soportado` en logs, sin confirmar ni revertir reservas; requieren
   conciliación manual. No se realizan devoluciones ni otras operaciones financieras.
@@ -89,12 +95,36 @@ duplicados simultáneos, fallos parciales, referencias ajenas, preferencia disti
 moneda/importe incompatible, vendedor incorrecto y errores sin filtraciones.
 Ejecuta los módulos reales con API y Supabase simulados, sin cargar `.env.local`.
 `npm run test:postgres` ejecuta los archivos SQL reales en un clúster privado
-temporal, sin TCP ni conexión a Supabase. Sus 23 pruebas incluyen compilación,
+temporal, sin TCP ni conexión a Supabase. Sus 30 pruebas incluyen compilación,
 RLS, permisos, duplicados, concurrencia, rollback y protección de reservas
-confirmadas. El responsable confirmó que las 23 pasaron. Esta suite ejecuta
+confirmadas y `pending/rejected → approved` con timestamp igual. Las 30 pasaron en
+PostgreSQL 17.11. Esta suite ejecuta
 migraciones exclusivamente en su clúster temporal; no repetirla cuando la tarea
-prohíba ejecutar migraciones. La prueba integral con PostgREST y el webhook en
-Preview sigue pendiente.
+prohíba ejecutar migraciones.
+
+## Evidencia de pruebas en Preview
+
+Pruebas del 11/11/2026 con vendedor y comprador de prueba; no acreditan una
+habilitación para cobros reales. Las comprobaciones de Supabase y la consulta
+de Rapipago a la API fueron de solo lectura, sin datos personales.
+
+| Caso | ID de pago | Mercado Pago / Supabase | Evidencia HTTP |
+| --- | --- | --- | --- |
+| Aprobado | `187947758963` | `approved` / reserva `confirmada`, pago y preferencia registrados | Webhook HTTP 200 comprobado por el responsable |
+| Rechazado, tarjeta de prueba OTHE | `187950338865` | `rejected` / reserva `pendiente`, ID y estado de pago registrados | No comprobada por separado |
+| Rapipago sin abonar | `189024269348` | API: `pending`, `pending_waiting_payment`; Supabase: `pending`, reserva `pendiente`, un solo registro del intento | No comprobada por separado |
+| Simulación duplicada del aprobado | `187947758963` | Mismos ID, preferencia, estados, timestamp, importe, cantidad y fecha; una sola reserva del intento/pago/preferencia | **Recepción HTTP no comprobada** |
+
+El Rapipago mostró una actualización de API un segundo posterior a la registrada
+en Supabase, con estado y referencia coincidentes. Los campos de pago persistidos
+son evidencia consistente con procesamiento del webhook, no un registro de su
+respuesta HTTP. La simulación duplicada demuestra ausencia de cambios observados;
+sin evidencia de recepción no demuestra por sí sola que recorrió toda la RPC.
+La idempotencia y concurrencia también están cubiertas en PostgreSQL real.
+
+El check de GitHub Actions ejecutará `npm ci`, `npm test` y `npm run build` en
+Pull Requests, sin secretos, SQL ni despliegues. Queda por comprobar su primera
+ejecución en GitHub una vez publicado el archivo del workflow.
 
 Referencias oficiales:
 

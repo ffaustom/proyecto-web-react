@@ -4,10 +4,11 @@ import { crearClienteSupabasePrivado } from '../supabase/service-server'
 import { crearPreferenciaParaReserva, recuperarPreferenciaParaReserva } from './server'
 
 export class ErrorCheckout extends Error {
-  constructor(message, reservaCreada = false, requiereRevision = false) {
+  constructor(message, reservaCreada = false, requiereRevision = false, reservaNoPendiente = false) {
     super(message)
     this.reservaCreada = reservaCreada
     this.requiereRevision = requiereRevision
+    this.reservaNoPendiente = reservaNoPendiente
   }
 }
 
@@ -15,6 +16,7 @@ export async function prepararCheckout(id, experienciaId, values, cantidad) {
   const cliente = crearClienteSupabasePrivado()
   async function operar(operacion, extra = {}) {
     const { data, error } = await cliente.rpc('operar_checkout', { p_operacion: operacion, p_id: id, ...extra })
+    if (error?.message === 'CHECKOUT_RESERVA_NO_PENDIENTE') throw new ErrorCheckout('Esta reserva ya no está pendiente. No vuelvas a intentar el pago de esta reserva.', true, false, true)
     if (error?.message === 'CHECKOUT_FECHA_PASADA') throw new ErrorCheckout('Para iniciar un checkout nuevo elegí hoy o una fecha posterior. Solo se puede recuperar una preferencia que ya exista con la fecha anterior.', true)
     if (error) throw new ErrorCheckout(error.message === 'CHECKOUT_DATOS_DISTINTOS'
       ? 'Este intento ya tiene una reserva. Reintentá con los mismos datos o empezá otra reserva.'
