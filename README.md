@@ -446,10 +446,13 @@ reclamar un POST nuevo; el helper de recuperación verifica que la preferencia
 no esté vencida. No se cambian fechas guardadas ni recomendaciones por temporada.
 
 La ruta `/pago/resultado` es informativa: ignora parámetros de pago y no consulta
-ni modifica reservas. No implementa el webhook ni confirma pagos. El parámetro
-`resultado=success` nunca se interpreta como prueba de aprobación. Las preferencias
-incluyen la URL futura del webhook, que todavía devolverá 404; no habilitar cobros
-reales. La demo integral queda pendiente de webhook y validación autorizada.
+ni modifica reservas. El parámetro `resultado=success` nunca se interpreta como
+prueba de aprobación. La confirmación por webhook está implementada en
+`POST /api/mercado-pago/webhook`: requiere su propia configuración y la migración
+`20261111120000_registrar_pago_verificado.sql`, **aplicada en Supabase remoto
+según confirmación del responsable del proyecto**.
+Ver [configuración, validaciones y límites del webhook](docs/mercado-pago-webhook.md).
+La conexión remota y su prueba integral siguen pendientes; no habilitar cobros reales.
 
 `tests/mercado-pago.test.mjs` ejecuta el módulo real con Supabase y la API simulados:
 importe persistido, UUID, URLs, fechas, modo de prueba, errores HTTP/red/JSON y
@@ -542,7 +545,7 @@ Las páginas son componentes de servidor por defecto. `Header` usa `usePathname`
 
 ## Alcance de esta versión
 
-El contenido y los precios siguen siendo de ejemplo, pero la única fuente del catálogo en ejecución es Supabase. El formulario registra reservas pendientes con fecha de visita, nombre, email, cantidad y total verificado. El checkout de prueba está preparado detrás de una habilitación explícita y una migración pendiente. No confirma pagos ni la operación de una excursión.
+El contenido y los precios siguen siendo de ejemplo, pero la única fuente del catálogo en ejecución es Supabase. El formulario registra reservas pendientes con fecha de visita, nombre, email, cantidad y total verificado. Checkout Pro de prueba requiere habilitación explícita. El webhook para confirmar pagos verificados está implementado y su migración está aplicada; la conexión y prueba integral del webhook en Preview quedan pendientes. No gestiona cupos ni disponibilidad de excursiones.
 
 Las tres páginas de experiencias consultan en cada solicitud del servidor, sin
 precargar IDs durante el build. Los cambios en Supabase no requieren reconstruir

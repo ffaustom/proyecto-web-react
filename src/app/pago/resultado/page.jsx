@@ -9,7 +9,7 @@ export default function ResultadoPago() {
     <main id="contenido" className="container">
       <h1>Volviste del checkout de prueba</h1>
       <p role="status">El regreso desde Mercado Pago no confirma el pago ni la reserva.</p>
-      <p>La confirmación automática todavía no está habilitada. Tu reserva permanece pendiente hasta que se verifique el pago.</p>
+      <p>La reserva se confirma únicamente cuando el servidor verifica el pago con Mercado Pago. Esta página no acredita el resultado y la verificación puede demorar.</p>
       <p>Si necesitás volver al checkout, regresá a la experiencia y reanudá el mismo intento con los mismos datos.</p>
       <Link className="button" href="/experiencias">Volver a las experiencias</Link>
     </main>
